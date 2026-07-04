@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Environments
+.venv/
+venv/
+env/
+
+# Test and coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Plumbline output
+reports/
+veriprice_audits/
+plumbline_audits/
+*.audit.json
+
+# Tooling
+.mypy_cache/
+.ruff_cache/
+.idea/
+.vscode/
+
+# Operating system
+.DS_Store
+Thumbs.db
+desktop.ini

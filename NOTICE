@@ -1,0 +1,72 @@
+Plumbline
+Copyright 2026 Vignesh Kumar U
+
+This product includes software developed by Vignesh Kumar U.
+
+Licensed under the Apache License, Version 2.0 (the "License"). You may obtain
+a copy of the License in the file LICENSE, or at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+----------------------------------------------------------------------------
+NO WARRANTY, AND NOT FINANCIAL ADVICE
+----------------------------------------------------------------------------
+
+Plumbline is a research, education, and model-validation tool.
+
+1. Plumbline is supplied "AS IS", without warranties or conditions of any
+   kind, express or implied. Section 7 of the License states this in full.
+
+2. Plumbline does not give investment advice. Plumbline does not give
+   financial advice. Plumbline does not give tax advice. Plumbline does not
+   give legal advice.
+
+3. Plumbline does not manage money. Plumbline does not place a trade.
+   Plumbline does not connect to a broker account.
+
+4. A PASS result from Plumbline is not a guarantee that a model is correct. A
+   PASS result means only that the model satisfied the checks that were run,
+   at the parameters that were used, within the tolerance that was set.
+
+5. Plumbline is not a substitute for an independent model validation function.
+   A firm that is subject to model risk regulation stays responsible for its
+   own validation, its own governance, and its own controls.
+
+6. You are responsible for every decision you make with the output of this
+   software. The authors and contributors accept no liability for any loss.
+
+----------------------------------------------------------------------------
+THIRD-PARTY COMPONENTS
+----------------------------------------------------------------------------
+
+Plumbline uses the following third-party packages at run time. Each keeps its
+own licence. None of their code is included in this repository.
+
+    NumPy            BSD 3-Clause
+    SciPy            BSD 3-Clause
+    FastAPI          MIT
+    Uvicorn          BSD 3-Clause
+    ReportLab        BSD 3-Clause
+    Matplotlib       Matplotlib licence (BSD-compatible)
+    pytest           MIT
+
+----------------------------------------------------------------------------
+REFERENCES
+----------------------------------------------------------------------------
+
+The mathematics in the Ground Truth Engine Suite comes from published work.
+Each engine names its source in its module docstring and in the engine
+registry. The principal references are:
+
+    Black, F. and Scholes, M. (1973)
+    Merton, R. C. (1973)
+    Cox, J., Ross, S. and Rubinstein, M. (1979)
+    Goldman, M. B., Sosin, H. B. and Gatto, M. A. (1979)
+    Rannacher, R. (1984)
+    Kemna, A. G. Z. and Vorst, A. C. F. (1990)
+    Conze, A. and Viswanathan, R. (1991)
+    Reiner, E. and Rubinstein, M. (1991)
+    Heston, S. L. (1993)
+    Glasserman, P. (2003)
+    Albrecher, H., Mayer, P., Schoutens, W. and Tistaert, J. (2007)
+    Lord, R., Koekkoek, R. and van Dijk, D. (2010)
