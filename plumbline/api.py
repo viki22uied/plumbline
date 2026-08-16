@@ -43,7 +43,7 @@ app = FastAPI(
         "not manage money, does not place trades, and does not give investment "
         "advice."
     ),
-    contact={"name": "Plumbline", "url": "https://github.com/vigneshkumaru/plumbline"},
+    contact={"name": "Plumbline", "url": "https://github.com/viki22uied/plumbline"},
     license_info={"name": "Apache-2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0"},
 )
 

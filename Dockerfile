@@ -20,7 +20,7 @@ FROM python:3.12-slim
 LABEL org.opencontainers.image.title="Plumbline"
 LABEL org.opencontainers.image.description="Independent verification engine for derivative pricing models"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
-LABEL org.opencontainers.image.source="https://github.com/vigneshkumaru/plumbline"
+LABEL org.opencontainers.image.source="https://github.com/viki22uied/plumbline"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

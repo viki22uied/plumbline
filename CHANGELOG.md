@@ -71,4 +71,4 @@ First production release. The full system, not a minimum version.
 - Test coverage of the Ground Truth Engine Suite and the Validation and Audit
   Engine is 92 percent. The requirement is 85 percent.
 
-[1.0.0]: https://github.com/vigneshkumaru/plumbline/releases/tag/v1.0.0
+[1.0.0]: https://github.com/viki22uied/plumbline/releases/tag/v1.0.0
