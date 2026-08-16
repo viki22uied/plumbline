@@ -45,7 +45,11 @@ def _apply_restrictions() -> None:
     This blocks accidents, not attacks: a determined model can undo every one
     of these.  The container image is the real isolation boundary.
     """
-    workdir = os.path.abspath(os.environ.get("PLUMBLINE_SANDBOX_WORKDIR", os.getcwd()))
+    # realpath, not abspath: on macOS the temporary directory is handed over as
+    # /var/folders/... while the child's own getcwd() reports the resolved
+    # /private/var/folders/... . Comparing the two unresolved would make the
+    # sandbox refuse writes to the very directory it just granted.
+    workdir = os.path.realpath(os.environ.get("PLUMBLINE_SANDBOX_WORKDIR", os.getcwd()))
 
     # -- no network ---------------------------------------------------------
     try:
@@ -67,7 +71,7 @@ def _apply_restrictions() -> None:
     def guarded_open(file, mode="r", *args, **kwargs):
         if any(flag in mode for flag in ("w", "a", "x", "+")):
             try:
-                target = os.path.abspath(os.fspath(file))
+                target = os.path.realpath(os.fspath(file))
                 inside = os.path.commonpath([target, workdir]) == workdir
             except (TypeError, ValueError):
                 # A file descriptor, or a path on another drive letter.

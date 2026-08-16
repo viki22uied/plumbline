@@ -279,6 +279,41 @@ def test_nfr09_the_sandbox_allows_writes_inside_its_working_directory(tmp_path):
         assert mut.price(SPEC).price == pytest.approx(3.0)
 
 
+def test_nfr09_the_write_guard_resolves_symlinks_before_comparing(tmp_path):
+    """The granted directory and the model's own cwd must compare equal.
+
+    On macOS a temporary directory is handed over as ``/var/folders/...`` and
+    reported back by ``getcwd()`` as ``/private/var/folders/...``, because
+    ``/var`` is a symlink. Comparing the two unresolved makes the sandbox
+    refuse a write to the directory it just granted.
+    """
+    real = tmp_path / "real_workdir"
+    real.mkdir()
+    link = tmp_path / "linked_workdir"
+    try:
+        os.symlink(real, link, target_is_directory=True)
+    except (OSError, NotImplementedError, AttributeError):
+        pytest.skip("this platform does not allow this user to create a symlink")
+
+    source = """
+        import os
+        def price(instrument, option_type, S, K, T, r, q, sigma, **kwargs):
+            with open(os.path.join(os.getcwd(), "scratch.txt"), "w") as handle:
+                handle.write("granted through a symlink")
+            return 4.0
+    """
+    path = write_model(tmp_path, "symlinked.py", textwrap.dedent(source))
+    sandbox = Sandbox(path, config=SandboxConfig(call_timeout=10.0, workdir=str(link)))
+    try:
+        result = sandbox.call(SPEC.to_mut_kwargs())
+    finally:
+        sandbox.close()
+
+    assert result.status == "OK", result.message
+    assert result.price == pytest.approx(4.0)
+    assert (real / "scratch.txt").is_file()
+
+
 def test_the_sandbox_cleans_up_its_working_directory(tmp_path):
     path = write_model(tmp_path, "tidy.py", MINIMAL)
     sandbox = Sandbox(path, config=SandboxConfig(call_timeout=5.0))
