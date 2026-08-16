@@ -20,7 +20,6 @@ coverage.xml
 
 # Plumbline output
 reports/
-veriprice_audits/
 plumbline_audits/
 *.audit.json
 

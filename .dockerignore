@@ -14,7 +14,6 @@ htmlcov
 coverage.xml
 reports
 plumbline_audits
-veriprice_audits
 .mypy_cache
 .ruff_cache
 .idea
