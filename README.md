@@ -321,7 +321,7 @@ Measure the coverage:
 pytest --cov=plumbline/engines --cov=plumbline/audit --cov-report=term-missing
 ```
 
-The suite has 141 tests. Coverage of the Ground Truth Engine Suite and the
+The suite has 213 tests. Coverage of the Ground Truth Engine Suite and the
 Validation and Audit Engine is 92 percent. The target set by the requirements is
 85 percent.
 
