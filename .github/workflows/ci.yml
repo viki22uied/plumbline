@@ -38,7 +38,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Run the test suite
+      - name: Run the test suite without the native backend
+        # The backend is optional, so the suite has to be green before it is
+        # built. The native tests skip themselves here.
         run: pytest -m "not slow" --cov=plumbline/engines --cov=plumbline/audit --cov-report=term-missing --cov-report=xml
 
       - name: Enforce the coverage floor (NFR-07)
@@ -61,6 +63,53 @@ jobs:
         with:
           name: audit-reports-${{ matrix.os }}-py${{ matrix.python-version }}
           path: reports/
+          if-no-files-found: ignore
+
+  native:
+    name: native backend / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # The runners ship a working C++ toolchain on all three platforms:
+      # g++ on Ubuntu, Apple clang on macOS, MSVC on Windows.
+      - name: Build the native backend
+        run: python native/build.py --check
+
+      - name: Confirm the CLI sees it
+        run: plumbline backend
+
+      - name: Run the native backend tests
+        # -p no:randomly is not needed; these tests are order independent.
+        run: pytest tests/test_native_backend.py -v
+
+      - name: Run the whole suite with the backend present
+        run: pytest -m "not slow"
+
+      - name: Benchmark against NumPy
+        run: python benchmarks/bench_backends.py --paths 200000 --steps 120 --repeats 2 --markdown --json benchmark-${{ matrix.os }}.json
+
+      - name: Upload the benchmark
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-${{ matrix.os }}
+          path: benchmark-${{ matrix.os }}.json
           if-no-files-found: ignore
 
   slow:

@@ -1,0 +1,4 @@
+include LICENSE NOTICE README.md CHANGELOG.md CHECKLIST.md
+include native/plumbline_mc.cpp native/plumbline_mc.h native/build.py
+recursive-include samples *.py
+recursive-include benchmarks *.py

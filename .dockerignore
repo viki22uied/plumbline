@@ -18,3 +18,5 @@ plumbline_audits
 .ruff_cache
 .idea
 .vscode
+plumbline/engines/_native
+benchmarks

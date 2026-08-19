@@ -18,6 +18,16 @@ env/
 htmlcov/
 coverage.xml
 
+# Native backend build output
+plumbline/engines/_native/
+*.so
+*.dylib
+*.dll
+*.obj
+*.exp
+*.lib
+*.pdb
+
 # Plumbline output
 reports/
 plumbline_audits/
