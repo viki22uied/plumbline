@@ -33,6 +33,8 @@ from plumbline.report import render_markdown, write_report
 WORK_ROOT = os.environ.get(
     "PLUMBLINE_API_WORKDIR", os.path.join(tempfile.gettempdir(), "plumbline-api")
 )
+#: Maximum upload size in bytes (default 10 MB).
+MAX_UPLOAD_BYTES = int(os.environ.get("PLUMBLINE_MAX_UPLOAD_MB", 10)) * 1024 * 1024
 
 app = FastAPI(
     title="Plumbline",
@@ -162,24 +164,39 @@ async def submit_audit(
     if instrument not in INSTRUMENTS:
         raise HTTPException(status_code=422, detail=f"instrument must be one of {INSTRUMENTS}")
 
-    upload_dir = tempfile.mkdtemp(prefix="upload-", dir=_ensure_root())
-    filename = os.path.basename(file.filename or "model.py")
-    model_path = os.path.join(upload_dir, filename)
-    with open(model_path, "wb") as handle:
-        shutil.copyfileobj(file.file, handle)
-
     try:
+        check_type_list = [int(part) for part in checks.split(",") if part.strip()]
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail="checks must be a comma-separated list of integers, e.g. '1,2,3,4,5,6'",
+        ) from None
+
+    upload_dir = tempfile.mkdtemp(prefix="upload-", dir=_ensure_root())
+    try:
+        filename = os.path.basename(file.filename or "model.py")
+        model_path = os.path.join(upload_dir, filename)
+        with open(model_path, "wb") as handle:
+            shutil.copyfileobj(file.file, handle, length=MAX_UPLOAD_BYTES + 1)
+        if os.path.getsize(model_path) > MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"uploaded file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MB limit",
+            )
+
         report = audit_file(
             model_path,
             entry=entry,
             grid=default_grid(instrument),
             tolerance=Tolerance(relative=tolerance),
             config=AuditConfig(),
-            check_types=[int(part) for part in checks.split(",") if part.strip()],
+            check_types=check_type_list,
             call_timeout=timeout,
         )
     except PlumblineError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        shutil.rmtree(upload_dir, ignore_errors=True)
 
     out_dir = os.path.join(_ensure_root(), "reports", report.audit_id)
     paths = write_report(report, out_dir)

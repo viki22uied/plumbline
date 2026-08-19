@@ -65,7 +65,9 @@ class Sandbox:
         self.workdir = self.config.workdir or tempfile.mkdtemp(prefix="plumbline-mut-")
         self._process: subprocess.Popen | None = None
         self._reader: threading.Thread | None = None
+        self._stderr_reader: threading.Thread | None = None
         self._lines: "queue.Queue[str | None]" = queue.Queue()
+        self._stderr_lines: list[str] = []
         self.signature: list[str] = []
         self.var_keyword = False
         self.timeouts = 0
@@ -80,7 +82,45 @@ class Sandbox:
             self.restarts += 1
 
         self._lines = queue.Queue()
-        env = dict(os.environ)
+        # Remove sensitive variables from the child environment while keeping
+        # the rest.  A whitelist approach breaks Python's own initialization on
+        # some platforms (e.g. Windows needs variables that are hard to
+        # enumerate exhaustively).  Blacklisting known-dangerous prefixes is
+        # safer: it blocks the most common secret-bearing variables while
+        # letting the interpreter start correctly.
+        _SENSITIVE_PREFIXES = (
+            "AWS_",
+            "AZURE_",
+            "GCP_",
+            "GOOGLE_",
+            "OPENAI_",
+            "ANTHROPIC_",
+            "GITHUB_",
+            "GITLAB_",
+            "HEROKU_",
+            "SLACK_",
+            "STRIPE_",
+            "SENDGRID_",
+            "Twilio",
+            "MONGO",
+            "DATABASE_",
+            "DB_",
+            "REDIS_",
+            "SECRET",
+            "TOKEN",
+            "CREDENTIAL",
+            "PASSWORD",
+            "API_KEY",
+            "PRIVATE",
+        )
+        _SENSITIVE_EXACT = frozenset({
+            "HOMEPATH", "HOMEDRIVE",
+        })
+        env = {
+            k: v for k, v in os.environ.items()
+            if k not in _SENSITIVE_EXACT
+            and not any(k.startswith(p) for p in _SENSITIVE_PREFIXES)
+        }
         env["PYTHONUNBUFFERED"] = "1"
         env["PLUMBLINE_SANDBOX_WORKDIR"] = self.workdir
         env["PLUMBLINE_SANDBOX_MEMORY"] = str(self.config.memory_limit_bytes)
@@ -95,7 +135,7 @@ class Sandbox:
             [sys.executable, "-u", "-m", "plumbline._worker"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
             env=env,
@@ -103,6 +143,9 @@ class Sandbox:
         )
         self._reader = threading.Thread(target=self._pump, daemon=True)
         self._reader.start()
+        self._stderr_lines = []
+        self._stderr_reader = threading.Thread(target=self._pump_stderr, daemon=True)
+        self._stderr_reader.start()
 
         reply = self._exchange(
             {"cmd": "load", "path": self.model_path, "entry": self.entry},
@@ -184,6 +227,16 @@ class Sandbox:
         finally:
             self._lines.put(None)  # sentinel: the child's stream ended
 
+    def _pump_stderr(self) -> None:
+        process = self._process
+        if process is None or process.stderr is None:
+            return
+        try:
+            for line in process.stderr:
+                self._stderr_lines.append(line)
+        except (ValueError, OSError):
+            pass
+
     def _exchange(self, message: dict[str, Any], timeout: float) -> dict[str, Any]:
         process = self._process
         if process is None or process.stdin is None:
@@ -209,10 +262,12 @@ class Sandbox:
             except queue.Empty:
                 continue
             if line is None:
+                stderr_text = "".join(self._stderr_lines[-20:]) if self._stderr_lines else ""
                 self.stop()
                 return {
                     "status": "ERROR",
-                    "message": "the Model Under Test crashed the sandbox process",
+                    "message": "the Model Under Test crashed the sandbox process"
+                    + (f"\nstderr:\n{stderr_text}" if stderr_text.strip() else ""),
                 }
             line = line.strip()
             if not line:
