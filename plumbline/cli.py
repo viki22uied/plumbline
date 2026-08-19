@@ -183,7 +183,15 @@ def _cmd_audit(args: Any) -> int:
 
     grid = default_grid(args.instrument, **overrides)
     tolerance = Tolerance(relative=args.tolerance, stochastic_relative=args.mc_tolerance)
-    check_types = [int(part) for part in args.checks.split(",") if part.strip()]
+    try:
+        check_types = [int(part) for part in args.checks.split(",") if part.strip()]
+    except ValueError:
+        print(
+            "plumbline: --checks must be a comma-separated list of integers, "
+            "for example 1,2,3,4,5,6",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
 
     report = audit_file(
         args.model,
