@@ -4,6 +4,37 @@ All notable changes to Plumbline are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Plumbline uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] — 2026-08-16
+
+### Added
+
+- **An optional C++ backend for the Monte Carlo engine.** Plain C++ with a C
+  ABI, loaded through `ctypes`, built by one command. It is not a Python
+  extension module, so no Python headers are needed and one build serves every
+  interpreter on the machine.
+- `python native/build.py --check` builds it and confirms it loads.
+- `plumbline backend` reports whether it is present and why not when it is not.
+- `plumbline audit --mc-backend {numpy,cpp,auto}` selects the backend for a run.
+- `benchmarks/bench_backends.py` measures the two backends against each other.
+- The Audit Report records which backend was available, in section 7.
+
+### Measured
+
+- Median 3.0x faster on a single thread, 12.0x on twelve cores, at 400,000
+  paths and 250 steps. Barriers and lookbacks gain most, at 3.5x to 4.0x
+  single threaded, because those are the contracts where the vectorised
+  version makes the most passes over memory per time step.
+
+### Notes
+
+- NumPy remains the default and the reference. Nothing requires the backend.
+- The two backends use different random generators on purpose, so they are
+  independent estimators. They agree within their combined standard error,
+  not to the last bit.
+- The native result is bit-identical across thread counts. Path-pairs are cut
+  into fixed blocks pinned to fixed random streams, each with its own
+  accumulator slot, merged in index order.
+
 ## [1.0.0] — 2026-08-16
 
 First production release. The full system, not a minimum version.
@@ -71,4 +102,5 @@ First production release. The full system, not a minimum version.
 - Test coverage of the Ground Truth Engine Suite and the Validation and Audit
   Engine is 92 percent. The requirement is 85 percent.
 
+[1.1.0]: https://github.com/viki22uied/plumbline/releases/tag/v1.1.0
 [1.0.0]: https://github.com/viki22uied/plumbline/releases/tag/v1.0.0

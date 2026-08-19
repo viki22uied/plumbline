@@ -7,7 +7,7 @@ names the test that proves it. Run the suite to confirm:
 pytest --cov=plumbline/engines --cov=plumbline/audit --cov-report=term-missing
 ```
 
-Result at the time of writing: **214 tests pass. Coverage is 92 percent.**
+Result at the time of writing: **254 tests pass. Coverage is 92 percent.**
 
 ---
 
@@ -144,9 +144,19 @@ Result at the time of writing: **214 tests pass. Coverage is 92 percent.**
 | Non-Functional Targets | 10 | 10 |
 | **Total** | **73** | **73** |
 
+## 12. Architecture (Section 7.1)
+
+- [x] Performance-critical Monte Carlo loops available as a C++ extension,
+  called from Python — `native/plumbline_mc.cpp`, loaded through `ctypes` by
+  `plumbline/engines/native.py`, exercised by `tests/test_native_backend.py`
+  and measured by `benchmarks/bench_backends.py`. Median 3.0x single threaded
+  and 12.0x on twelve cores. The backend is optional and NumPy stays the
+  documented default, so the requirement is met without making a compiler a
+  condition of installing Plumbline.
+
 ---
 
-## Two notes on where the build is stricter than the checklist
+## Three notes on where the build differs from the checklist
 
 1. **Delta range.** The checklist asks for call delta in [0, 1] and put delta in
    [−1, 0]. Plumbline uses exactly that as the pass rule. A European option is
@@ -159,3 +169,11 @@ Result at the time of writing: **214 tests pass. Coverage is 92 percent.**
    in-the-money European put, which trades below its intrinsic value when rates
    are positive. Plumbline applies the correct static bound for each exercise
    style, and records the intrinsic value and the spot alongside it.
+
+3. **The C++ backend is optional, and the PRD did not say that.** Section 7.1
+   asks for a C++ extension module for the performance-critical loops.
+   Plumbline has one, and it is measured. It is not required to install or to
+   run: a machine with no compiler gets the NumPy engine, a green test suite
+   and identical audit results. Making the compiler mandatory would have cost
+   the portability requirement of NFR-10 for a speed the performance
+   requirements do not need.

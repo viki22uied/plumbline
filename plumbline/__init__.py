@@ -1,6 +1,6 @@
 """Plumbline -- independent verification engine for derivative pricing models."""
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 from plumbline.contracts import (  # noqa: F401
     Greeks,

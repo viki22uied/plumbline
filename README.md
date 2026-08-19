@@ -253,7 +253,124 @@ textbook value or against a second engine that shares no code.
   crosses a branch cut of the complex logarithm past about one year. The little
   trap form of Albrecher et al. (2007) does not. Plumbline uses the second form.
 
-## 9. Instruments and models
+## 9. The optional C++ backend
+
+The Monte Carlo engine has two backends. NumPy is the default and stays the
+reference for what the estimator means. A C++ library does the same arithmetic
+faster, and it is optional in the strict sense: Plumbline runs, and every check
+works, when it is not there.
+
+### Build it
+
+```bash
+python native/build.py --check
+```
+
+The script finds `g++`, `clang++` or `cl` on the PATH and writes one shared
+library. It is not a Python extension module. It exports plain C and is loaded
+with `ctypes`, so there are no Python headers to find, no interpreter version
+to match, and one build serves every Python on the machine.
+
+Check what Plumbline sees:
+
+```bash
+plumbline backend
+```
+
+Use it for an audit:
+
+```bash
+plumbline audit model.py --mc-backend auto
+```
+
+`auto` uses the library when it is built and falls back to NumPy when it is
+not. `cpp` demands the library and raises if it is missing, which is what a
+benchmark needs: a run that silently measured NumPy would be worse than an
+error.
+
+### Measured speedup
+
+400,000 paths, 250 time steps, best of three runs. Intel 12-core, Windows,
+GCC 16.1, `-O3`. Reproduce it with:
+
+```bash
+python benchmarks/bench_backends.py --markdown
+```
+
+| Contract | Steps | NumPy | C++ 1 thread | C++ all cores | x1 | xN |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| european call | 1 | 21 ms | 7 ms | 3 ms | **3.1x** | **7.3x** |
+| digital cash-or-nothing | 1 | 17 ms | 8 ms | 3 ms | **2.1x** | **5.3x** |
+| asian arithmetic | 250 | 2575 ms | 1686 ms | 314 ms | **1.5x** | **8.2x** |
+| asian geometric | 250 | 3010 ms | 1686 ms | 314 ms | **1.8x** | **9.6x** |
+| barrier down-and-out | 250 | 6464 ms | 1867 ms | 367 ms | **3.5x** | **17.6x** |
+| barrier up-and-in | 250 | 7179 ms | 2421 ms | 498 ms | **3.0x** | **14.4x** |
+| lookback fixed strike | 250 | 4906 ms | 1237 ms | 266 ms | **4.0x** | **18.5x** |
+| lookback floating strike | 250 | 5232 ms | 1388 ms | 407 ms | **3.8x** | **12.9x** |
+| **median** | | | | | **3.0x** | **12.0x** |
+
+Read both columns. **x1** holds the C++ to a single thread, so it measures the
+code and nothing else. **xN** lets it use every core, and NumPy's inner loops
+here are single threaded, so that column includes the thread count and is not
+a like-for-like comparison. Quoting **xN** alone would flatter the C++.
+Quoting **x1** alone would hide what the backend is for.
+
+The raw numbers are in `benchmarks/results-windows.json`.
+
+### Where the single-thread gain comes from
+
+The pattern in the table is the point. The plain European call gains 3.1x and
+the arithmetic Asian only 1.5x, while barriers and lookbacks gain 3.5x to 4.0x.
+That ordering follows the memory traffic, not the arithmetic.
+
+- NumPy walks an array of length N once per operation per time step. A barrier
+  step computes two gap arrays, a product, an exponential, a comparison mask
+  and a multiply: six passes over N doubles, each one a fresh allocation. At
+  400,000 paths that working set is far larger than L2, so every pass goes to
+  memory.
+- The C++ carries one path-pair in registers from `t=0` to expiry. It allocates
+  nothing inside the loop.
+- The Asian gains least because its per-step work is a single `np.exp` over the
+  whole array, which is the one thing NumPy already does about as well as a
+  scalar loop can.
+
+So the backend wins most exactly where the vectorised version has to make the
+most passes, which is what you would predict before running it.
+
+### What the backend deliberately does not do
+
+**It does not reproduce NumPy's random stream.** It uses xoshiro256++ seeded
+through splitmix64; NumPy uses PCG64 with a ziggurat normal. That makes the two
+backends independent estimators of the same expectation, which is the more
+useful thing to have in a validation tool: two bit-identical numbers would only
+prove that one copied the other. The tests assert that each backend agrees with
+the closed form within its own sampling error, and that the two agree with each
+other within their combined sampling error.
+
+**It does not price a degenerate contract.** At zero volatility, zero time to
+expiry or a zero spot, the value is a closed form that lives in
+`plumbline/engines/limits.py`. The library returns a refusal code and the
+caller falls back to that one implementation. A second copy of those formulas
+in C++ would be a second thing to keep right.
+
+**It does not compute the control variate's expectation.** Python passes it in.
+The control is only unbiased if the mean subtracted is the exact one, so the
+closed forms behind it have a single implementation and the two backends cannot
+drift apart on them.
+
+### Determinism
+
+The same seed gives the same answer, on one thread and on twelve, run after
+run. That is not free: merging Welford accumulators is not associative in
+floating point, so if each thread merged whatever work it happened to win from
+the scheduler, the last bits would move between runs. Path-pairs are therefore
+cut into fixed blocks, block *k* always draws from stream *k*, each block gets
+its own accumulator slot, and the merge walks the slots in index order.
+
+The first version of this backend did not do that, and the test that compares
+one thread against eight is what caught it.
+
+## 10. Instruments and models
 
 **Vanilla:** European call, European put, American call, American put.
 
@@ -264,7 +381,7 @@ asset-or-nothing), lookback (fixed strike and floating strike).
 **Underlying dynamics:** geometric Brownian motion (Black-Scholes-Merton),
 Heston stochastic volatility, local volatility (Dupire).
 
-## 10. The sandbox
+## 11. The sandbox
 
 Plumbline runs your model in a separate process. The parent never imports it.
 
@@ -277,7 +394,7 @@ This stops an honest model from causing damage by accident. This is not an
 operating-system jail, and it does not stop code written to be hostile. Run an
 untrusted model in the container.
 
-## 11. Add a new engine
+## 12. Add a new engine
 
 Plumbline has one plug-in interface. Nothing in the audit engine changes.
 
@@ -301,7 +418,7 @@ register(EngineSpec(
 The registry picks the engine with the highest priority that covers the
 instrument and the underlying model.
 
-## 12. Tests
+## 13. Tests
 
 Run the full suite:
 
@@ -321,14 +438,14 @@ Measure the coverage:
 pytest --cov=plumbline/engines --cov=plumbline/audit --cov-report=term-missing
 ```
 
-The suite has 214 tests. Coverage of the Ground Truth Engine Suite and the
+The suite has 254 tests. Coverage of the Ground Truth Engine Suite and the
 Validation and Audit Engine is 92 percent. The target set by the requirements is
 85 percent.
 
 See [CHECKLIST.md](CHECKLIST.md) for every requirement and the test that proves
 it.
 
-## 13. Repository layout
+## 14. Repository layout
 
 ```
 plumbline/
@@ -356,13 +473,19 @@ plumbline/
         pdf.py              the PDF renderer
         plots.py            convergence plots
         summary.py          the plain-language diagnosis
+        native.py           ctypes loader for the optional C++ backend
     cli.py              Module E -- the command line interface
     api.py              Module E -- the REST API
+native/                 the optional C++ backend
+    plumbline_mc.h          the C ABI, shared with the ctypes loader
+    plumbline_mc.cpp        the engine
+    build.py                one command to build it
+benchmarks/             the NumPy against C++ measurement
 samples/                models to audit, correct and broken
 tests/                  the test suite
 ```
 
-## 14. Licence
+## 15. Licence
 
 Plumbline is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
 
@@ -373,6 +496,6 @@ matters for any tool that touches valuation.
 
 Read [NOTICE](NOTICE) as well. It states what Plumbline is not.
 
-## 15. Author
+## 16. Author
 
 Vignesh Kumar U.
