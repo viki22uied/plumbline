@@ -95,6 +95,26 @@ class AuditReport:
         }
 
 
+def _environment() -> dict[str, str]:
+    """What ran the audit, for section 7 of the report.
+
+    The native backend is recorded whether or not it was built. A reader
+    comparing two reports needs to know which one had it, because the two
+    backends draw from different random streams and their Monte Carlo figures
+    will differ inside the sampling error.
+    """
+    from plumbline.engines import montecarlo, native
+
+    described = native.describe()
+    return {
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+        "monte_carlo_backend_default": montecarlo.DEFAULT_BACKEND,
+        "native_backend": described["version"] or "not built",
+        "native_backend_threads": str(described["hardware_threads"]),
+    }
+
+
 def run_audit(
     mut: ModelUnderTest,
     grid: ParameterGrid | None = None,
@@ -150,10 +170,7 @@ def run_audit(
         finished_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         duration_s=duration,
         engines=[engine.to_dict() for engine in REGISTRY.values()],
-        environment={
-            "python": platform.python_version(),
-            "platform": platform.platform(),
-        },
+        environment=_environment(),
     )
 
 

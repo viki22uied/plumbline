@@ -77,11 +77,24 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--dividends", help="comma separated dividend yields")
     audit.add_argument("--barrier", type=float, help="barrier level, for a barrier audit")
     audit.add_argument("--barrier-kind", dest="barrier_kind", help="for example up-and-out")
+    audit.add_argument(
+        "--mc-backend",
+        default="numpy",
+        choices=("numpy", "cpp", "auto"),
+        dest="mc_backend",
+        help="Monte Carlo backend for the reference engines; auto uses the "
+        "native library when it is built and falls back to numpy when it is not",
+    )
     audit.add_argument("--no-history", action="store_true", help="do not store this audit")
     audit.add_argument("--quiet", action="store_true", help="print the summary only")
 
     engines = subparsers.add_parser("engines", help="list the Ground Truth Engines")
     engines.add_argument("--json", action="store_true", help="print machine-readable output")
+
+    backend = subparsers.add_parser(
+        "backend", help="report the state of the optional native Monte Carlo backend"
+    )
+    backend.add_argument("--json", action="store_true")
 
     price = subparsers.add_parser("price", help="price one contract with a reference engine")
     price.add_argument("--instrument", default="european", choices=list(INSTRUMENTS))
@@ -113,6 +126,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_audit(args)
         if args.command == "engines":
             return _cmd_engines(args)
+        if args.command == "backend":
+            return _cmd_backend(args)
         if args.command == "price":
             return _cmd_price(args)
         if args.command == "history":
@@ -158,6 +173,13 @@ def _cmd_audit(args: Any) -> int:
         extras["barrier_kind"] = args.barrier_kind
     if extras:
         overrides["extras"] = extras
+
+    if args.mc_backend != "numpy":
+        # Process-wide, because the reference engines are reached through the
+        # registry and take no per-call backend argument.
+        from plumbline.engines import montecarlo
+
+        montecarlo.DEFAULT_BACKEND = args.mc_backend
 
     grid = default_grid(args.instrument, **overrides)
     tolerance = Tolerance(relative=args.tolerance, stochastic_relative=args.mc_tolerance)
@@ -238,6 +260,35 @@ def _cmd_engines(args: Any) -> int:
     for engine in engines:
         print(f"  {engine['name']}: {engine['description']}")
         print(f"      reference: {engine['reference']}")
+    print()
+    return EXIT_OK
+
+
+def _cmd_backend(args: Any) -> int:
+    """Report whether the optional native backend is present and usable."""
+    from plumbline.engines import montecarlo, native
+
+    described = native.describe()
+    if args.json:
+        print(json.dumps({**described, "default": montecarlo.DEFAULT_BACKEND}, indent=2))
+        return EXIT_OK
+
+    print()
+    print(f"  default Monte Carlo backend: {montecarlo.DEFAULT_BACKEND}")
+    print()
+    if described["available"]:
+        print(f"  native backend:   available")
+        print(f"  version:          {described['version']}")
+        print(f"  library:          {described['library']}")
+        print(f"  hardware threads: {described['hardware_threads']}")
+        print()
+        print("  Use it with --mc-backend auto on an audit, or backend='cpp' in code.")
+    else:
+        print("  native backend:   not built")
+        print(f"  reason:           {described['error']}")
+        print()
+        print("  Plumbline does not need it. Every check works without it.")
+        print("  To build it:      python native/build.py --check")
     print()
     return EXIT_OK
 
