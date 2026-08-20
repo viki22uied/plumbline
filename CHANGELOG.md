@@ -20,10 +20,14 @@ All notable changes to Plumbline are recorded here. The format follows
 
 ### Measured
 
-- Median 3.0x faster on a single thread, 12.0x on twelve cores, at 400,000
-  paths and 250 steps. Barriers and lookbacks gain most, at 3.5x to 4.0x
-  single threaded, because those are the contracts where the vectorised
-  version makes the most passes over memory per time step.
+- Measured on four machines, three of them GitHub runners. The single-thread
+  speedup ranges from 0.8x to 4.0x and the all-cores speedup from 2.2x to
+  18.5x, depending on the platform, the core count and the contract. Median
+  across the three runners is about 1.2x to 2.1x on one thread and 3.0x to
+  4.5x across cores. Full tables in `benchmarks/RESULTS.md`.
+- The stable result across every machine is the ordering across contracts:
+  barriers and lookbacks gain most and the Asian gains least, which follows
+  the memory traffic per time step rather than the arithmetic.
 
 ### Notes
 

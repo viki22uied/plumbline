@@ -149,10 +149,11 @@ Result at the time of writing: **254 tests pass. Coverage is 92 percent.**
 - [x] Performance-critical Monte Carlo loops available as a C++ extension,
   called from Python — `native/plumbline_mc.cpp`, loaded through `ctypes` by
   `plumbline/engines/native.py`, exercised by `tests/test_native_backend.py`
-  and measured by `benchmarks/bench_backends.py`. Median 3.0x single threaded
-  and 12.0x on twelve cores. The backend is optional and NumPy stays the
-  documented default, so the requirement is met without making a compiler a
-  condition of installing Plumbline.
+  and measured by `benchmarks/bench_backends.py` on four machines, three of
+  them GitHub runners: roughly 1x to 3x on one thread and 3x to 12x across
+  cores, with the full tables in `benchmarks/RESULTS.md`. The backend is
+  optional and NumPy stays the documented default, so the requirement is met
+  without making a compiler a condition of installing Plumbline.
 
 ---
 

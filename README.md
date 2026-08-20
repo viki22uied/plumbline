@@ -290,52 +290,62 @@ error.
 
 ### Measured speedup
 
-400,000 paths, 250 time steps, best of three runs. Intel 12-core, Windows,
-GCC 16.1, `-O3`. Reproduce it with:
+Measured on four machines, three of them GitHub runners so anyone can check
+them. Full tables in [benchmarks/RESULTS.md](benchmarks/RESULTS.md).
+
+| Machine | Toolchain | Cores | x1 median | xN median |
+| --- | --- | ---: | ---: | ---: |
+| GitHub runner, Ubuntu | GCC | 4 | **1.2x** | **3.0x** |
+| GitHub runner, macOS arm64 | Apple Clang | 3 | **1.2x** | **3.2x** |
+| GitHub runner, Windows | MSVC | 4 | **2.1x** | **4.5x** |
+| Developer laptop, Windows | MinGW GCC 16.1 | 12 | **3.0x** | **12.0x** |
+
+**The headline is a range, not a number: about 1x to 3x on one thread, and 3x
+to 12x across cores.** The 12x belongs to a twelve-core laptop whose NumPy is
+also unusually slow, so weight the three runner rows above it. On the Ubuntu
+runner one contract is 0.8x, meaning the single-threaded C++ *loses* to NumPy
+there. That number is in the table too.
+
+Reproduce it on your own machine:
 
 ```bash
 python benchmarks/bench_backends.py --markdown
 ```
 
-| Contract | Steps | NumPy | C++ 1 thread | C++ all cores | x1 | xN |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| european call | 1 | 21 ms | 7 ms | 3 ms | **3.1x** | **7.3x** |
-| digital cash-or-nothing | 1 | 17 ms | 8 ms | 3 ms | **2.1x** | **5.3x** |
-| asian arithmetic | 250 | 2575 ms | 1686 ms | 314 ms | **1.5x** | **8.2x** |
-| asian geometric | 250 | 3010 ms | 1686 ms | 314 ms | **1.8x** | **9.6x** |
-| barrier down-and-out | 250 | 6464 ms | 1867 ms | 367 ms | **3.5x** | **17.6x** |
-| barrier up-and-in | 250 | 7179 ms | 2421 ms | 498 ms | **3.0x** | **14.4x** |
-| lookback fixed strike | 250 | 4906 ms | 1237 ms | 266 ms | **4.0x** | **18.5x** |
-| lookback floating strike | 250 | 5232 ms | 1388 ms | 407 ms | **3.8x** | **12.9x** |
-| **median** | | | | | **3.0x** | **12.0x** |
-
 Read both columns. **x1** holds the C++ to a single thread, so it measures the
-code and nothing else. **xN** lets it use every core, and NumPy's inner loops
-here are single threaded, so that column includes the thread count and is not
-a like-for-like comparison. Quoting **xN** alone would flatter the C++.
-Quoting **x1** alone would hide what the backend is for.
+code. **xN** lets it use every core, and NumPy's inner loops here are single
+threaded, so that column includes the core count and is not a like-for-like
+comparison. Quoting **xN** alone would flatter the C++; quoting **x1** alone
+would hide what the backend is for.
 
-The raw numbers are in `benchmarks/results-windows.json`.
+### Where the gain comes from, and where it does not
 
-### Where the single-thread gain comes from
+The speedup varies a lot by machine. The *ordering across contracts* barely
+varies at all, and that ordering is the part with a mechanism behind it.
 
-The pattern in the table is the point. The plain European call gains 3.1x and
-the arithmetic Asian only 1.5x, while barriers and lookbacks gain 3.5x to 4.0x.
-That ordering follows the memory traffic, not the arithmetic.
+Barriers and lookbacks gain most on three of the four machines. The Asian
+gains least, and on two machines it loses. That tracks memory traffic:
 
-- NumPy walks an array of length N once per operation per time step. A barrier
-  step computes two gap arrays, a product, an exponential, a comparison mask
-  and a multiply: six passes over N doubles, each one a fresh allocation. At
-  400,000 paths that working set is far larger than L2, so every pass goes to
-  memory.
-- The C++ carries one path-pair in registers from `t=0` to expiry. It allocates
-  nothing inside the loop.
-- The Asian gains least because its per-step work is a single `np.exp` over the
-  whole array, which is the one thing NumPy already does about as well as a
-  scalar loop can.
+- A NumPy barrier step computes two gap arrays, a product, an exponential, a
+  comparison mask and a multiply: six passes over N doubles, each one a fresh
+  allocation. At scale that working set does not fit in cache, so every pass
+  goes to memory. The C++ carries one path-pair in registers from `t=0` to
+  expiry and allocates nothing in the loop.
+- A NumPy Asian step is a single `np.exp` over a contiguous array plus two
+  adds. There is almost no traffic to save, and a scalar `std::exp` loop
+  cannot beat a vectorised one.
 
-So the backend wins most exactly where the vectorised version has to make the
-most passes, which is what you would predict before running it.
+So the backend wins where the vectorised version makes the most passes, and
+loses where NumPy already does one well-vectorised pass. On Linux, glibc's
+`exp` is fast enough that the memory saving does not always cover the scalar
+transcendental cost, which is exactly where the 0.8x comes from.
+
+The multi-core column is the more dependable win, and it is the honest reason
+to build the backend: the step loop cannot be threaded from Python.
+
+If the goal were maximum speed rather than a demonstration of the technique,
+the next move would be a vectorised `exp` in the inner loop, not more threads.
+That is where the remaining gap is.
 
 ### What the backend deliberately does not do
 
