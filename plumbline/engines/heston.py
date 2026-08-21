@@ -99,13 +99,28 @@ def heston_price(spec: OptionSpec) -> float:
     if spec.xi <= DETERMINISTIC_VARIANCE_XI:
         return _deterministic_variance_price(spec)
 
+    forward_value = S * math.exp(-q * T) - K * math.exp(-r * T)
     call = S * math.exp(-q * T) * _probability(1, spec) - K * math.exp(-r * T) * _probability(
         2, spec
     )
+
+    # The quadrature is accurate to about 1e-7 in absolute price, which is
+    # nothing next to an at-the-money option and everything next to a deep
+    # out-of-the-money one: for a short-dated call struck far above the spot
+    # the integral returns a small negative number. Clamping the call to its
+    # static lower bound fixes that.
+    #
+    # The clamp must happen before the put is derived, not after. Clamping only
+    # the call and deriving the put from the raw value breaks put-call parity
+    # by exactly the amount clamped, which is the kind of defect Check Type 2
+    # exists to catch in somebody else's model.
+    call = max(call, max(forward_value, 0.0))
+
     if spec.option_type == "put":
-        # Put-call parity holds model-free, so the put comes from the call.
-        return call - S * math.exp(-q * T) + K * math.exp(-r * T)
-    return max(call, 0.0)
+        # Parity is model-free, so the put follows from the clamped call and
+        # the two stay consistent by construction.
+        return call - forward_value
+    return call
 
 
 def _deterministic_variance_price(spec: OptionSpec) -> float:
