@@ -14,7 +14,7 @@ plumbline
 ## Description (the "About" field, 350 character limit)
 
 ```
-Independent verification engine for derivative pricing models. Audits any pricing model against closed-form, lattice, PDE and Monte Carlo ground truth, then reports what is wrong in plain language. Vanilla and exotic options, Black-Scholes, Heston and local volatility.
+Checks a derivative pricing model against closed-form, lattice, PDE and Monte Carlo reference engines, then reports what is wrong in plain language. Vanilla and exotic options; Black-Scholes, Heston and local volatility.
 ```
 
 ## Website
@@ -27,7 +27,8 @@ Leave this empty until the documentation site exists.
 
 ## Topics
 
-GitHub allows twenty topics. These are the twenty, in order of relevance.
+Fifteen, all of them things a person would actually search for. Buzzword tags
+that describe the stack rather than the subject were dropped.
 
 ```
 quantitative-finance
@@ -44,22 +45,7 @@ binomial-tree
 exotic-options
 greeks
 numerical-methods
-financial-engineering
-stochastic-calculus
-arbitrage-free
-quant
 python
-fastapi
-```
-
-Further topics that describe the project, for a search or for a release note,
-if the limit is ever raised:
-
-```
-barrier-options  asian-options  lookback-options  digital-options
-put-call-parity  crank-nicolson  variance-reduction  control-variates
-antithetic-variates  brownian-bridge  risk-management  audit
-validation-framework  numpy  scipy  pytest  rest-api  cli
 ```
 
 ## Settings to enable
