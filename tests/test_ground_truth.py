@@ -389,6 +389,129 @@ def test_gt07_in_plus_out_equals_the_vanilla(kind, barrier, option_type):
 # ---------------------------------------------------------------------------
 
 
+def test_nfr01_the_reference_engines_meet_their_accuracy_at_production_settings():
+    """NFR-01 at the settings the audit actually runs, not at hand-picked ones.
+
+    The GT- tests above pin each engine at a chosen point with a chosen step
+    count. That is not the same thing as the engine being accurate at its
+    default, across the grid a real audit sweeps, and the difference is not
+    academic: a reference engine whose own error exceeds the tolerance it is
+    used to enforce will fail a correct model.
+
+    This is the test that was missing. Before the Broadie-Detemple corrections
+    the binomial engine reached 4.0e-3 relative error here, four times the
+    audit's own band, while GT-02 passed because it ran at 4000 steps.
+    """
+    from plumbline.audit.grid import default_grid
+
+    worst = 0.0
+    worst_case = ""
+    for spec in default_grid("european"):
+        exact = analytic.black_scholes_price(spec)
+        tree = binomial.binomial_price(spec)  # default step count, as the audit uses
+        error = relative_error(tree, exact)
+        if error > worst:
+            worst, worst_case = error, f"{spec.label()} tree={tree:.8f} exact={exact:.8f}"
+
+    assert worst < 1e-4, f"worst relative error {worst:.3e} at {worst_case}"
+
+
+def test_the_binomial_engine_has_no_sawtooth_in_its_step_count():
+    """Adjacent step counts must not straddle the answer with a large error.
+
+    Plain Cox-Ross-Rubinstein oscillates because the payoff kink falls between
+    two terminal nodes and moves as the step count changes. The error flips
+    sign from one step count to the next and does not shrink between them,
+    which also makes a convergence check meaningless.
+    """
+    spec = OptionSpec("european", "call", S=100, K=100, T=1.0, r=0.05, q=0.0, sigma=0.20)
+    exact = analytic.black_scholes_price(spec)
+
+    errors = [binomial.binomial_price(spec, steps) - exact for steps in range(400, 408)]
+
+    assert max(abs(e) for e in errors) < 1e-4, errors
+    # A sawtooth shows up as the sign changing at every single step.
+    sign_changes = sum(
+        1 for a, b in zip(errors, errors[1:]) if a * b < 0.0
+    )
+    assert sign_changes < len(errors) - 1, f"error alternates at every step: {errors}"
+
+
+def test_the_binomial_engine_still_converges_as_steps_rise():
+    """Richardson must not flatten the convergence Check Type 4 looks for."""
+    spec = OptionSpec("american", "put", S=100, K=100, T=1.0, r=0.05, q=0.0, sigma=0.20)
+    fine = binomial.binomial_price(spec, 6000)
+
+    coarse_error = abs(binomial.binomial_price(spec, 100) - fine)
+    finer_error = abs(binomial.binomial_price(spec, 1600) - fine)
+
+    assert finer_error < coarse_error
+
+
+def test_the_heston_engine_never_returns_a_negative_price():
+    """FR-C-18 applied to Plumbline's own engine.
+
+    The Fourier integral is accurate to about 1e-7 in absolute price. For a
+    short-dated call struck far above the spot the true value is smaller than
+    that, and the raw integral came back negative.
+    """
+    worst = 0.0
+    for strike in (150.0, 200.0, 250.0, 300.0):
+        for maturity in (0.05, 0.1, 0.25, 0.5):
+            spec = OptionSpec(
+                "european",
+                "call",
+                S=100,
+                K=strike,
+                T=maturity,
+                r=0.04,
+                q=0.02,
+                model="heston",
+                v0=0.05,
+                theta_v=0.04,
+                kappa=1.5,
+                xi=0.5,
+                rho_sv=-0.9,
+            )
+            price = heston.heston_price(spec)
+            worst = min(worst, price)
+            assert price >= 0.0, f"K={strike} T={maturity}: {price:.6e}"
+    assert worst >= 0.0
+
+
+@pytest.mark.parametrize("strike", [60.0, 100.0, 160.0, 250.0])
+@pytest.mark.parametrize("maturity", [0.05, 0.25, 2.0, 10.0])
+def test_heston_put_call_parity_is_exact_including_deep_out_of_the_money(strike, maturity):
+    """Parity must hold where the clamp bites, not only where it does not.
+
+    Clamping the call at zero and then deriving the put from the unclamped
+    value broke parity by exactly the amount clamped. The clamp now happens
+    once, before the put is derived, so the two cannot disagree.
+    """
+    call = OptionSpec(
+        "european",
+        "call",
+        S=100,
+        K=strike,
+        T=maturity,
+        r=0.04,
+        q=0.02,
+        model="heston",
+        v0=0.05,
+        theta_v=0.04,
+        kappa=1.5,
+        xi=0.5,
+        rho_sv=-0.9,
+    )
+    put = call.with_(option_type="put")
+
+    gap = (heston.heston_price(call) - heston.heston_price(put)) - (
+        100.0 * math.exp(-0.02 * maturity) - strike * math.exp(-0.04 * maturity)
+    )
+
+    assert abs(gap) < 1e-12, f"parity gap {gap:.3e}"
+
+
 def test_nfr02_every_engine_returns_double_precision():
     """NFR-02: all arithmetic is IEEE 754 double precision.
 
