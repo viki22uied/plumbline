@@ -6,7 +6,7 @@ you what is wrong with it.
 [![CI](https://github.com/viki22uied/plumbline/actions/workflows/ci.yml/badge.svg)](https://github.com/viki22uied/plumbline/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
-[![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen)](#tests)
+[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)](#tests)
 [![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macos%20%7C%20windows-lightgrey)](#installation)
 
 > This document uses ASD-STE100 Simplified Technical English. Sentences are

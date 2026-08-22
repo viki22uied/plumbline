@@ -7,7 +7,9 @@ names the test that proves it. Run the suite to confirm:
 pytest --cov=plumbline/engines --cov=plumbline/audit --cov-report=term-missing
 ```
 
-Result at the time of writing: **344 tests pass. Coverage is 91 percent.** Of those, 45 validate the engines against QuantLib rather than against Plumbline itself; see [BENCHMARKS.md](BENCHMARKS.md).
+Result at the time of writing: **377 tests pass, 2 skip. Coverage is 92 percent.**
+Of those, 61 validate the engines against QuantLib and a further 16 against
+financepy rather than against Plumbline itself; see [BENCHMARKS.md](BENCHMARKS.md).
 
 ---
 
