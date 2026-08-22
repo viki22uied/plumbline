@@ -130,11 +130,27 @@ class Sandbox:
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=2.0)
+        # The reader thread holds the stdout pipe until EOF reaches it, which
+        # lands shortly after -- but not necessarily before -- wait() returns.
+        # Joining keeps the process's handle state deterministic for whatever
+        # the caller does next (the tests delete the work directory here).
+        for thread in (self._reader,):
+            if thread is not None and thread.is_alive():
+                thread.join(timeout=2.0)
 
     def close(self) -> None:
         self.stop()
         if self._owns_workdir:
-            shutil.rmtree(self.workdir, ignore_errors=True)
+            # On Windows a just-terminated process's directory handle can
+            # outlive wait() by a tick; deleting over it would fail silently.
+            # A short bounded retry turns that race into a certainty without
+            # ever making a live sandbox wait.
+            for delay in (0.0, 0.05, 0.1, 0.2, 0.4):
+                if delay:
+                    time.sleep(delay)
+                shutil.rmtree(self.workdir, ignore_errors=True)
+                if not os.path.isdir(self.workdir):
+                    return
 
     def __enter__(self) -> "Sandbox":
         self.start()

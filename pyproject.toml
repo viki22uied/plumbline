@@ -59,7 +59,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7.4", "pytest-cov>=4.1", "pytest-xdist>=3.5", "httpx>=0.27"]
-oracle = ["QuantLib>=1.30"]
+oracle = ["QuantLib>=1.30", "financepy>=1.0", "pandas>=2.0"]
 
 [project.urls]
 Homepage = "https://github.com/viki22uied/plumbline"
