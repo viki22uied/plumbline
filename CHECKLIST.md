@@ -7,7 +7,7 @@ names the test that proves it. Run the suite to confirm:
 pytest --cov=plumbline/engines --cov=plumbline/audit --cov-report=term-missing
 ```
 
-Result at the time of writing: **254 tests pass. Coverage is 92 percent.**
+Result at the time of writing: **274 tests pass. Coverage is 91 percent.**
 
 ---
 
@@ -142,7 +142,8 @@ Result at the time of writing: **254 tests pass. Coverage is 92 percent.**
 | Instrument Coverage | 17 | 17 |
 | Acceptance Criteria | 6 | 6 |
 | Non-Functional Targets | 10 | 10 |
-| **Total** | **73** | **73** |
+| Architecture (section 7.1) | 1 | 1 |
+| **Total** | **74** | **74** |
 
 ## 12. Architecture (Section 7.1)
 

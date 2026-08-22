@@ -1,11 +1,12 @@
 # Plumbline
 
-**An independent verification engine for derivative pricing models.**
+Checks a derivative pricing model against known-correct mathematics and tells
+you what is wrong with it.
 
 [![CI](https://github.com/viki22uied/plumbline/actions/workflows/ci.yml/badge.svg)](https://github.com/viki22uied/plumbline/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
-[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)](#tests)
+[![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen)](#tests)
 [![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macos%20%7C%20windows-lightgrey)](#installation)
 
 > This document uses ASD-STE100 Simplified Technical English. Sentences are
@@ -35,7 +36,9 @@ A person who uses the wrong price can lose money. A firm that uses the wrong
 model can break a rule set by a regulator. Banks employ people whose full job is
 to check a model before the firm uses it. That job is called Model Validation.
 
-Plumbline does that check, and it does it in the open.
+Plumbline does that check. The reference engines and the tests behind them
+are in this repository, so you can run them yourself rather than take the
+result on trust.
 
 ## 3. Install
 
@@ -448,8 +451,8 @@ Measure the coverage:
 pytest --cov=plumbline/engines --cov=plumbline/audit --cov-report=term-missing
 ```
 
-The suite has 254 tests. Coverage of the Ground Truth Engine Suite and the
-Validation and Audit Engine is 92 percent. The target set by the requirements is
+The suite has 274 tests. Coverage of the Ground Truth Engine Suite and the
+Validation and Audit Engine is 91 percent. The target set by the requirements is
 85 percent.
 
 See [CHECKLIST.md](CHECKLIST.md) for every requirement and the test that proves
