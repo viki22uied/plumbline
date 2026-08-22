@@ -201,7 +201,14 @@ async def submit_audit(
 
 @app.get("/audit/{audit_id}/report.json", tags=["audit"], summary="Machine-readable Audit Report")
 def get_report_json(audit_id: str) -> dict[str, Any]:
-    return AuditHistory(os.path.join(_ensure_root(), "history")).load(_safe_id(audit_id))
+    audit_id = _safe_id(audit_id)
+    try:
+        return AuditHistory(os.path.join(_ensure_root(), "history")).load(audit_id)
+    except KeyError:
+        # The store raises with the directory it searched, which is fine in a
+        # traceback and wrong in an HTTP body: an unknown id is a 404, and the
+        # server's filesystem layout is not the caller's business.
+        raise HTTPException(status_code=404, detail=f"no report for audit {audit_id}") from None
 
 
 @app.get(
@@ -237,9 +244,18 @@ def _ensure_root() -> str:
     return WORK_ROOT
 
 
+#: Audit ids are 16 hexadecimal characters. Anything longer is not one, and
+#: refusing it early keeps an unbounded path out of the store lookup.
+AUDIT_ID_MAX_LENGTH = 64
+
+
 def _safe_id(audit_id: str) -> str:
-    if not audit_id.isalnum():
-        raise HTTPException(status_code=422, detail="an audit id is alphanumeric")
+    if not audit_id.isalnum() or len(audit_id) > AUDIT_ID_MAX_LENGTH:
+        raise HTTPException(
+            status_code=422,
+            detail=f"an audit id is alphanumeric and at most "
+            f"{AUDIT_ID_MAX_LENGTH} characters",
+        )
     return audit_id
 
 

@@ -235,3 +235,23 @@ def test_the_api_has_a_health_probe():
 def test_the_api_rejects_a_path_traversal_attempt_in_an_audit_id():
     response = client.get("/audit/..%2F..%2Fetc/report.md")
     assert response.status_code in (404, 422)
+
+
+@pytest.mark.parametrize(
+    "audit_id",
+    ["deadbeefdeadbeef", "a" * 500, "../../etc/passwd", "'; DROP TABLE--", "%00"],
+)
+@pytest.mark.parametrize("suffix", ["report.json", "report.md", "report.pdf"])
+def test_an_unknown_audit_id_is_a_client_error_not_a_server_error(audit_id, suffix):
+    """A 500 here would leak the server's filesystem layout in the body.
+
+    The history store raises KeyError naming the directory it searched. That
+    belongs in a traceback, not in an HTTP response.
+    """
+    response = client.get(f"/audit/{audit_id}/{suffix}")
+
+    assert response.status_code in (400, 404, 422), response.text
+    assert response.status_code < 500
+    body = response.text.lower()
+    for leak in ("temp", "users", "appdata", "traceback", "\\", "home/"):
+        assert leak not in body, f"response leaks {leak!r}: {response.text[:200]}"
