@@ -6,7 +6,7 @@ you what is wrong with it.
 [![CI](https://github.com/viki22uied/plumbline/actions/workflows/ci.yml/badge.svg)](https://github.com/viki22uied/plumbline/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
-[![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen)](#tests)
+[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen)](#tests)
 [![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20macos%20%7C%20windows-lightgrey)](#installation)
 
 > This document uses ASD-STE100 Simplified Technical English. Sentences are
@@ -459,16 +459,25 @@ pytest
 
 | Lane | Tests | Wall time | What it covers |
 | --- | ---: | ---: | --- |
-| `fast` | 176 | **7 s** | closed forms, engines, and the QuantLib oracle |
-| `integration` | 125 | ~20 s | sandbox, audit engine, reports, CLI, API |
+| `fast` | 189 | ~60 s | closed forms, engines, and both external oracles |
+| `integration` | 127 | ~35 s | sandbox, audit engine, reports, CLI, API |
 | `native` | 40 | ~5 s | the optional C++ backend |
-| `slow` | 3 | ~25 s | million-path simulations |
-| all | 338 | ~39 s | |
+| `slow` | 23 | ~2 min | million-path simulations and the FD Asian oracle grids |
+| all | 379 | ~4 min | |
 
-Validate against QuantLib on its own:
+Wall times were measured on a mid-range Windows laptop with the default
+four-worker run; they are machine-specific, and the counts are not.
+
+Validate against both external oracles on their own:
 
 ```bash
 pytest -m oracle
+```
+
+Re-run the mutation suite:
+
+```bash
+python tests/mutation/run_mutation.py
 ```
 
 Measure the coverage:
@@ -477,15 +486,15 @@ Measure the coverage:
 pytest --cov=plumbline/engines --cov=plumbline/audit --cov-report=term-missing
 ```
 
-The suite has 344 tests. Coverage of the Ground Truth Engine Suite and the
-Validation and Audit Engine is 91 percent. The target set by the requirements is
-85 percent.
+The suite has 379 tests. Coverage of the Ground Truth Engine Suite and the
+Validation and Audit Engine is above 91 percent. The target set by the
+requirements is 85 percent.
 
 See [CHECKLIST.md](CHECKLIST.md) for every requirement and the test that proves
 it, and [BENCHMARKS.md](BENCHMARKS.md) for which reference values are validated
-against QuantLib and which are only cross-checked inside this repository. That
-distinction matters: every defect found in these engines so far passed the
-internal cross-checks while being wrong.
+against two independent libraries and which are only cross-checked inside this
+repository. That distinction matters: every defect found in these engines so
+far passed the internal cross-checks while being wrong.
 
 ## 14. Repository layout
 

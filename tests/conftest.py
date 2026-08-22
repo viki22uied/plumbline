@@ -38,6 +38,7 @@ LANES = {
     "test_ground_truth.py": "fast",
     "test_engines.py": "fast",
     "test_external_oracle.py": "fast",
+    "test_external_oracle_financepy.py": "fast",
     "test_checks.py": "integration",
     "test_ingestion.py": "integration",
     "test_report.py": "integration",

@@ -146,6 +146,31 @@ def test_gt03_variance_reduction_actually_reduces_variance():
     assert both.control_beta != 0.0
 
 
+def test_gt03_monte_carlo_is_unbiased_when_dividends_and_rates_differ():
+    """The simulation must price correctly with r != q in the fast lane.
+
+    A mutation once swapped the discount rate into the terminal-spot control's
+    expectation and survived every test in the inner lanes. GT-03 above, the
+    only other check of the raw estimator's correctness against a closed
+    form, uses q = 0 -- where r-discounting and q-discounting still differ,
+    but that test is marked slow and never ran in the fast or integration
+    lanes. The audit could not catch it either: its sample model delegates to
+    the same engines, so both sides go wrong together.
+
+    This test keeps a correctness pin on the raw estimator inside the fast
+    lane, at parameters where confusing r with q moves the price by ~3.
+    """
+    spec = OptionSpec("european", "call", S=100, K=100, T=1.0, r=0.05, q=0.02, sigma=0.20)
+    closed = analytic.black_scholes_price(spec)
+
+    result = montecarlo.monte_carlo(spec, paths=200_000, seed=17)
+
+    # Four standard errors of sampling room; the bias this guards against is
+    # hundreds of standard errors at these parameters.
+    assert abs(result.price - closed) < 4.0 * result.stderr
+    assert abs(result.price - closed) / closed < 5e-3
+
+
 # ---------------------------------------------------------------------------
 # GT-04
 # ---------------------------------------------------------------------------
@@ -402,6 +427,44 @@ def test_gt07_in_plus_out_equals_the_vanilla(kind, barrier, option_type):
     assert abs(knock_out + knock_in - vanilla) < 1e-10
 
 
+LOOKBACK_BRANCHES = [
+    ("floating call", dict(strike_type="floating"), "call"),
+    ("floating put", dict(strike_type="floating"), "put"),
+    ("fixed call", dict(strike_type="fixed"), "call"),
+    ("fixed put", dict(strike_type="fixed"), "put"),
+]
+
+
+@pytest.mark.parametrize("name,extra,option_type", LOOKBACK_BRANCHES)
+def test_gt07_every_lookback_branch_matches_its_closed_form(name, extra, option_type):
+    """All four lookback branches, simulation against closed form.
+
+    Each branch is pinned separately on purpose. A mutation once flipped the
+    sign of the reflection term in the floating *call* and survived the whole
+    suite, because the only numerical lookback comparisons covered the
+    floating put and the fixed call -- two branches had no numeric check at
+    all and nothing else would have caught a wrong one.
+
+    The bridge-extreme sampling is exact between observations, so the
+    simulation targets the same continuous-monitoring value the formulas
+    compute. Measured agreement at these settings: 0.3 to 0.5 standard
+    errors on every branch.
+    """
+    spec = OptionSpec(
+        "lookback", option_type, S=100, K=100, T=1.0, r=0.05, q=0.02, sigma=0.25, **extra
+    )
+    reference = analytic.lookback_price(spec)
+    simulated = montecarlo.monte_carlo(spec, paths=100_000, steps=252, seed=5)
+
+    # Four standard errors of sampling room. A wrong reflection term, a
+    # flipped sign on the carry tail or a broken extreme sampler moves the
+    # price by tens of standard errors, not by fractions of one.
+    assert abs(simulated.price - reference) < 4.0 * simulated.stderr, (
+        f"{name}: MC {simulated.price:.6f} (se {simulated.stderr:.2e}) "
+        f"vs closed form {reference:.6f}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # NFR-02
 # ---------------------------------------------------------------------------
@@ -549,3 +612,56 @@ def test_nfr02_every_engine_returns_double_precision():
         montecarlo.monte_carlo(spec, paths=2_000).price,
     ):
         assert isinstance(value, float)
+
+
+# ---------------------------------------------------------------------------
+# exact degenerate corners and the helpers behind them
+# ---------------------------------------------------------------------------
+
+
+def test_the_degenerate_arithmetic_asian_corner_is_the_time_average_of_the_forward():
+    """limits.degenerate_value on a zero-volatility arithmetic Asian.
+
+    With sigma = 0 the path is deterministic, so the average is the time
+    average of the forward and both branches of the carry handling are exact
+    closed forms:
+
+        b != 0:  S * (exp(b T) - 1) / (b T)
+        b == 0:  S
+    """
+    from plumbline.engines.limits import degenerate_value
+
+    # b != 0: r = 6%, q = 1%, so carry b = 5%.
+    spec = OptionSpec(
+        "asian", "call", S=100.0, K=101.0, T=1.0, r=0.06, q=0.01, sigma=0.0,
+        averaging="arithmetic",
+    )
+    b, S, T, K = 0.05, 100.0, 1.0, 101.0
+    average = S * math.expm1(b * T) / (b * T)
+    expected = math.exp(-0.06 * T) * max(average - K, 0.0)
+
+    assert degenerate_value(spec) == pytest.approx(expected, rel=1e-14)
+
+    # b == 0: r = q, the flat-forward branch.
+    flat = OptionSpec(
+        "asian", "call", S=100.0, K=99.0, T=2.0, r=0.04, q=0.04, sigma=0.0,
+        averaging="arithmetic",
+    )
+    expected_flat = math.exp(-0.04 * 2.0) * (100.0 - 99.0)
+    assert degenerate_value(flat) == pytest.approx(expected_flat, rel=1e-14)
+
+
+def test_the_lookback_carry_floor_preserves_the_sign_of_b():
+    """The documented contract of _safe_carry.
+
+    The lookback formulas are singular at exactly b = 0, so the module nudges
+    b off zero by _CARRY_FLOOR while keeping its sign -- nudging a negative b
+    to +floor would silently reprice short-carry contracts with the wrong
+    tail. A mutation once flipped this sign choice and survived, because no
+    test pinned the contract directly.
+    """
+    assert analytic._safe_carry(0.0) > 0.0
+    assert analytic._safe_carry(+1e-12) > 0.0
+    assert analytic._safe_carry(-1e-12) < 0.0
+    assert analytic._safe_carry(0.03) == 0.03
+    assert analytic._safe_carry(-0.02) == -0.02

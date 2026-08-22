@@ -37,7 +37,7 @@ import pytest
 ql = pytest.importorskip("QuantLib", reason="QuantLib is not installed")
 
 from plumbline.contracts import OptionSpec
-from plumbline.engines import analytic, binomial, fdm, heston
+from plumbline.engines import analytic, binomial, fdm, heston, montecarlo
 
 pytestmark = pytest.mark.oracle
 
@@ -268,6 +268,48 @@ def test_barriers_match_quantlibs_reiner_rubinstein(kind, ql_kind, barrier, opti
     assert mine == pytest.approx(option.NPV(), abs=1e-9)
 
 
+REBATE_CASES = [
+    ("down-and-in", ql.Barrier.DownIn, 90.0, "call"),
+    ("down-and-out", ql.Barrier.DownOut, 90.0, "call"),
+    ("up-and-out", ql.Barrier.UpOut, 130.0, "put"),
+]
+
+
+@pytest.mark.parametrize("kind,ql_kind,barrier,option_type", REBATE_CASES)
+def test_barriers_with_a_rebate_match_quantlib(kind, ql_kind, barrier, option_type):
+    """The rebate terms were never numerically checked until a mutation of the
+    discount factor on the E term survived the entire suite: every other
+    barrier test prices a zero-rebate contract, where E and F vanish.
+
+    Plumbline follows the Reiner-Rubinstein convention -- knock-in rebate paid
+    at expiry, knock-out at the hit -- and so does QuantLib's analytic engine,
+    which this confirms to machine precision (measured: ~1e-14).
+    """
+    S, K, r, q, sigma = 100.0, 100.0, 0.05, 0.02, 0.25
+    expiry, T = _maturity(1.0)
+    rebate = 3.0
+
+    option = ql.BarrierOption(
+        ql_kind,
+        barrier,
+        rebate,
+        ql.PlainVanillaPayoff(
+            ql.Option.Call if option_type == "call" else ql.Option.Put, K
+        ),
+        ql.EuropeanExercise(expiry),
+    )
+    option.setPricingEngine(ql.AnalyticBarrierEngine(_process(S, r, q, sigma)))
+
+    mine = analytic.barrier_price(
+        OptionSpec(
+            "barrier", option_type, S=S, K=K, T=T, r=r, q=q, sigma=sigma,
+            barrier=barrier, barrier_kind=kind, rebate=rebate,
+        )
+    )
+
+    assert mine == pytest.approx(option.NPV(), abs=1e-9)
+
+
 @pytest.mark.parametrize("option_type", ["call", "put"])
 def test_cash_or_nothing_digitals_match_quantlib(option_type):
     S, K, r, q, sigma = 100.0, 100.0, 0.05, 0.02, 0.25
@@ -409,3 +451,104 @@ def test_the_finite_difference_engine_matches_quantlibs_grid():
     )
 
     assert abs(mine - option.NPV()) < 1e-3
+
+
+# ---------------------------------------------------------------------------
+# Arithmetic Asian against QuantLib's finite-difference Asian engine
+#
+# The arithmetic average has no closed form, so until now its only reference
+# was Plumbline's own simulation (Table 2 in BENCHMARKS.md). This is the
+# external oracle for it: QuantLib's FdBlackScholesAsianEngine prices a
+# discrete-averaging arithmetic Asian on a PDE in the running-average
+# variable -- a completely different numerical method from Plumbline's Monte
+# Carlo, written by different authors.
+#
+# Convention alignment, which matters more than anything else here:
+# * Plumbline's simulation averages at t = dt .. T over n fixings.
+# * The fixing dates below are TODAY + i*365/n days with n chosen to divide
+#   365 evenly, so QuantLib's Actual365Fixed year fraction of fixing i is
+#   exactly i/n and the two schedules coincide day for day. A schedule that
+#   does not divide evenly produces sub-day rounding, and the comparison then
+#   measures the calendar rather than the mathematics.
+# * The tolerance carries both sides' errors: six Monte Carlo standard errors
+#   plus the finite-difference grid's own discretisation, which dominates in
+#   every case measured so far. Measured agreement at these settings runs
+#   between 0.2 and 6 standard errors; see BENCHMARKS.md Table 1.
+# ---------------------------------------------------------------------------
+
+
+ARITHMETIC_ASIAN_CASES = [
+    # S, K, years, r, q, sigma, n_fixings, paths, seed
+    (100.0, 100.0, 1.0, 0.05, 0.02, 0.25, 365, 400_000, 45),
+    (100.0, 110.0, 2.0, 0.04, 0.01, 0.20, 146, 300_000, 46),
+    (90.0, 105.0, 1.0, 0.03, 0.00, 0.15, 73, 200_000, 43),
+    (100.0, 100.0, 1.0, 0.05, 0.02, 0.25, 73, 400_000, 42),
+]
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("S,K,years,r,q,sigma,n,paths,seed", ARITHMETIC_ASIAN_CASES)
+@pytest.mark.parametrize("option_type", ["call", "put"])
+def test_arithmetic_asian_matches_quantlib_finite_difference(
+    S, K, years, r, q, sigma, n, paths, seed, option_type
+):
+    expiry, T = _maturity(years)
+    total_days = int(round(years * 365))
+    # Sub-day rounding here would compare calendars, not mathematics.
+    assert total_days % n == 0, "fixings must fall on whole days to stay aligned"
+    dates = [TODAY + (total_days // n) * i for i in range(1, n + 1)]
+    option = ql.DiscreteAveragingAsianOption(
+        ql.Average().Arithmetic,
+        dates,
+        ql.PlainVanillaPayoff(
+            ql.Option.Call if option_type == "call" else ql.Option.Put, K
+        ),
+        ql.EuropeanExercise(expiry),
+    )
+    option.setPricingEngine(
+        ql.FdBlackScholesAsianEngine(_process(S, r, q, sigma), 800, 300, 150)
+    )
+    reference = option.NPV()
+
+    mine = montecarlo.monte_carlo(
+        OptionSpec(
+            "asian", option_type, S=S, K=K, T=T, r=r, q=q, sigma=sigma,
+            averaging="arithmetic",
+        ),
+        paths=paths,
+        steps=n,
+        seed=seed,
+    )
+
+    # Six standard errors of sampling room plus 0.4 percent for the FD grid's
+    # own discretisation, which measurement shows is the larger of the two at
+    # coarse fixing counts. Neither side's error model is allowed to hide a
+    # wrong drift, a dropped fixing or a discounting error: those move the
+    # price by far more than either band.
+    assert abs(mine.price - reference) < max(6.0 * mine.stderr, 4e-3 * abs(reference)), (
+        f"MC {mine.price:.6f} (se {mine.stderr:.2e}) vs FD {reference:.6f}"
+    )
+
+
+def test_the_quantlib_asian_fd_engine_is_grid_stable():
+    """Guard the oracle itself: halving the grids must barely move the answer.
+
+    An oracle whose own value depends on its grid settings cannot certify
+    anything. This pins the FD engine used above to better than 0.3 percent.
+    """
+    S, K, r, q, sigma = 100.0, 100.0, 0.05, 0.02, 0.25
+    expiry, _ = _maturity(1.0)
+    n = 73
+    dates = [TODAY + int(round(i * 365 / n)) for i in range(1, n + 1)]
+    option = ql.DiscreteAveragingAsianOption(
+        ql.Average().Arithmetic,
+        dates,
+        ql.PlainVanillaPayoff(ql.Option.Call, K),
+        ql.EuropeanExercise(expiry),
+    )
+    values = []
+    for grid in [(400, 150, 75), (800, 300, 150)]:
+        option.setPricingEngine(ql.FdBlackScholesAsianEngine(_process(S, r, q, sigma), *grid))
+        values.append(option.NPV())
+
+    assert abs(values[1] - values[0]) / values[1] < 3e-3
