@@ -7,7 +7,7 @@ names the test that proves it. Run the suite to confirm:
 pytest --cov=plumbline/engines --cov=plumbline/audit --cov-report=term-missing
 ```
 
-Result at the time of writing: **274 tests pass. Coverage is 91 percent.**
+Result at the time of writing: **293 tests pass. Coverage is 91 percent.**
 
 ---
 
