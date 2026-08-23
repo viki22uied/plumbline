@@ -139,6 +139,13 @@ class OptionSpec:
             value = getattr(self, name)
             if value is None or not math.isfinite(value) or value < 0.0:
                 raise PlumblineError(f"{name}={value!r} must be finite and >= 0")
+        # Rates may be negative -- that is a real market -- but never infinite
+        # or NaN. Without this check a NaN rate propagates silently into a
+        # price, and an infinite one quietly discounts every payoff to zero.
+        for name in ("r", "q"):
+            value = getattr(self, name)
+            if value is None or not math.isfinite(value):
+                raise PlumblineError(f"{name}={value!r} must be a finite number")
         if self.instrument == "barrier":
             if self.barrier is None or self.barrier <= 0.0:
                 raise PlumblineError("a barrier option needs barrier > 0")
