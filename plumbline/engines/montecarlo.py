@@ -368,7 +368,9 @@ def monte_carlo(
 
     beta = 0.0
     sample = payoff
-    if control_variate and control is not None:
+    # A single sample has no variance to estimate, and asking NumPy for one
+    # with ddof=1 warns and returns NaN rather than saying so.
+    if control_variate and control is not None and payoff.size > 1:
         control_var = float(np.var(control, ddof=1))
         if control_var > 1e-16:
             beta = float(np.cov(payoff, control, ddof=1)[0, 1] / control_var)
