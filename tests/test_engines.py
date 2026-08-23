@@ -301,6 +301,70 @@ def test_option_spec_rejects_a_barrier_without_a_level():
         OptionSpec("barrier", "call", barrier_kind="up-and-out", **BASE)
 
 
+def test_local_volatility_barrier_parity_uses_the_surface_not_a_flat_vol():
+    """In plus out must equal the vanilla priced under the same dynamics.
+
+    Completing a local-volatility knock-in with the Black-Scholes vanilla
+    quietly mixes two different volatility assumptions into one price. The
+    error was 0.5 percent on a moderate skew, five times the audit's own band.
+    """
+    knock_out = OptionSpec(
+        "barrier",
+        "call",
+        S=100,
+        K=100,
+        T=1.0,
+        r=0.04,
+        q=0.0,
+        sigma=0.25,
+        model="localvol",
+        lv_a=0.25,
+        lv_b=-0.4,
+        barrier=130.0,
+        barrier_kind="up-and-out",
+    )
+    knock_in = knock_out.with_(barrier_kind="up-and-in")
+    vanilla = knock_out.with_(instrument="european")
+
+    total = fdm.fdm_price(knock_out) + fdm.fdm_price(knock_in)
+
+    assert abs(total - fdm.fdm_price(vanilla)) < 1e-9
+
+
+def test_option_spec_rejects_a_non_finite_rate_or_dividend_yield():
+    """A NaN rate must not reach an engine and come back out as a NaN price."""
+    base = dict(S=100.0, K=100.0, T=1.0, sigma=0.2)
+
+    for field, value in [
+        ("r", math.nan),
+        ("r", math.inf),
+        ("q", math.nan),
+        ("q", -math.inf),
+    ]:
+        with pytest.raises(PlumblineError):
+            OptionSpec("european", "call", **{**base, "r": 0.05, "q": 0.0, field: value})
+
+
+def test_a_negative_rate_is_still_accepted():
+    """Negative rates are a real market, not an input error."""
+    spec = OptionSpec("european", "call", S=100, K=100, T=1.0, r=-0.01, q=-0.005, sigma=0.2)
+
+    assert math.isfinite(analytic.black_scholes_price(spec))
+
+
+def test_a_single_path_simulation_does_not_warn_or_return_nan():
+    """np.var with ddof=1 on one sample warns and yields NaN rather than saying so."""
+    import warnings
+
+    spec = OptionSpec("european", "call", S=100, K=100, T=1.0, r=0.05, q=0.0, sigma=0.2)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        result = montecarlo.monte_carlo(spec, paths=1, seed=1)
+
+    assert math.isfinite(result.price)
+
+
 def test_option_spec_rejects_a_negative_volatility():
     with pytest.raises(PlumblineError):
         OptionSpec("european", "call", **{**BASE, "sigma": -0.1})
