@@ -255,13 +255,23 @@ def fdm_price(
 
     if spec.instrument == "barrier" and spec.barrier_kind.endswith("in"):
         # In-out parity: a knock-in is the vanilla minus the matching knock-out.
-        from plumbline.engines.analytic import black_scholes_price
-
         out_kind = spec.barrier_kind.replace("-in", "-out")
         knock_out = fdm_price(
             spec.with_(barrier_kind=out_kind, rebate=0.0), space_steps, time_steps
         )
-        vanilla = black_scholes_price(spec.with_(instrument="european"))
+        european = spec.with_(instrument="european")
+        if spec.model == "bsm":
+            # Constant volatility has an exact vanilla, so use it and keep the
+            # only discretisation error in the knock-out leg.
+            from plumbline.engines.analytic import black_scholes_price
+
+            vanilla = black_scholes_price(european)
+        else:
+            # Under a local volatility surface there is no closed-form vanilla.
+            # Taking the Black-Scholes one would complete the knock-in with a
+            # contract priced off a different volatility, and in-out parity
+            # would fail against this engine's own European price.
+            vanilla = fdm_price(european, space_steps, time_steps)
         return vanilla - knock_out
 
     space_steps = int(space_steps or spec.precision or DEFAULT_SPACE_STEPS)
