@@ -5,6 +5,12 @@ else.  Each test here pins one engine against a value that does not come from
 Plumbline: a textbook figure, a published benchmark, or a second engine built
 on entirely different mathematics.
 
+These are necessary and they are not sufficient. Two engines by one author
+share one set of assumptions, and every defect found in these engines so far
+passed the internal cross-checks while being wrong. The external validation
+against QuantLib lives in tests/test_external_oracle.py, and BENCHMARKS.md
+records which numbers are externally sourced and which are not.
+
 NFR-01 sets the bar at 1e-4 relative error for the closed-form engines.  The
 simulation and grid engines carry their own published tolerances, stated in
 each test.
@@ -66,12 +72,17 @@ def test_gt01_put_and_parity():
 def test_gt02_american_put_binomial_matches_benchmark():
     """GT-02: the American put benchmark, S=K=100 r=5% sigma=20% T=1.
 
-    The high-precision value of this standard case is 6.0903.  It is confirmed
-    below by two engines that share no code: a 4000-step binomial tree and a
-    Crank-Nicolson finite difference grid.
+    The reference value 6.0903706065 comes from QuantLib's QdFpAmericanEngine
+    on its high-precision scheme, which implements the Andersen, Lake &
+    Offengenden (2016) fixed-point method. It is asserted directly against
+    QuantLib in tests/test_external_oracle.py; repeated here so this file
+    still pins the number when QuantLib is not installed.
+
+    Two engines that share no code confirm it below: a binomial tree and a
+    Crank-Nicolson grid.
     """
     spec = OptionSpec("american", "put", S=100, K=100, T=1.0, r=0.05, q=0.0, sigma=0.20)
-    benchmark = 6.0903
+    benchmark = 6.0903706065
 
     tree = binomial.binomial_price(spec, steps=4000)
     grid = fdm.fdm_price(spec, space_steps=1600, time_steps=1600)
@@ -296,7 +307,11 @@ def test_gt06_geometric_asian_matches_kemna_vorst_closed_form():
     spec = OptionSpec("asian", "call", S=100, K=100, T=1.0, r=0.05, q=0.02, sigma=0.25)
 
     closed = analytic.geometric_asian_price(spec)
-    simulated = montecarlo.monte_carlo(spec, paths=200_000, steps=4000, seed=11)
+    # The control variate for a geometric Asian is its own payoff, so the
+    # residual variance is zero and the path count changes nothing. What is
+    # being tested is the discrete average converging on the continuous one,
+    # which is the step count.
+    simulated = montecarlo.monte_carlo(spec, paths=20_000, steps=4000, seed=11)
 
     assert relative_error(closed, simulated.price) < 2e-3
 
@@ -354,7 +369,10 @@ def test_gt07_barrier_closed_form_matches_two_other_methods(kind, option_type):
 
     closed = analytic.barrier_price(spec)
     grid = fdm.fdm_price(spec)
-    simulated = montecarlo.monte_carlo(spec, paths=200_000, steps=400, seed=5)
+    # The Brownian-bridge correction is exact between observations, so the
+    # step count is not what makes a barrier accurate here; the tolerance
+    # below scales with the standard error, so this stays a real test.
+    simulated = montecarlo.monte_carlo(spec, paths=100_000, steps=100, seed=5)
 
     assert abs(closed - grid) < max(1e-3, 1e-3 * abs(closed))
     assert abs(closed - simulated.price) < 4.0 * simulated.stderr + 1e-3
