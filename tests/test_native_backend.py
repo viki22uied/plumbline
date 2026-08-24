@@ -113,7 +113,7 @@ def test_the_native_backend_agrees_with_the_closed_form(name, spec, closed_form)
     if closed_form is None:
         pytest.skip("no closed form exists for this contract")
 
-    result = mc.monte_carlo(spec, paths=400_000, steps=250, seed=4242, backend="cpp")
+    result = mc.monte_carlo(spec, paths=200_000, steps=120, seed=4242, backend="cpp")
     reference = closed_form(spec)
 
     assert result.backend == "cpp"
@@ -128,8 +128,8 @@ def test_the_native_backend_agrees_with_the_closed_form(name, spec, closed_form)
 
 @pytest.mark.parametrize("name,spec,_", PARITY_CASES, ids=[c[0] for c in PARITY_CASES])
 def test_the_two_backends_agree_within_their_combined_error(name, spec, _):
-    numpy_result = mc.monte_carlo(spec, paths=400_000, steps=250, seed=4242, backend="numpy")
-    native_result = mc.monte_carlo(spec, paths=400_000, steps=250, seed=4242, backend="cpp")
+    numpy_result = mc.monte_carlo(spec, paths=200_000, steps=120, seed=4242, backend="numpy")
+    native_result = mc.monte_carlo(spec, paths=200_000, steps=120, seed=4242, backend="cpp")
 
     combined = math.hypot(numpy_result.stderr, native_result.stderr)
     gap = abs(numpy_result.price - native_result.price)

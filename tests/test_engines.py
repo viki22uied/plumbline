@@ -96,7 +96,9 @@ def test_every_vanilla_instrument_prices(instrument, option_type):
 @pytest.mark.parametrize("instrument,option_type,extras", EXOTIC_CASES)
 def test_every_exotic_instrument_prices(instrument, option_type, extras):
     spec = OptionSpec(instrument, option_type, **BASE, **extras)
-    result = registry.ground_truth_price(spec)
+    # Only the price is asserted here, and Greeks cost nine more valuations.
+    # test_frb07_every_engine_returns_five_finite_greeks covers those.
+    result = registry.ground_truth_price(spec, with_greeks=False)
     assert result.ok
     assert result.price >= 0.0
 
