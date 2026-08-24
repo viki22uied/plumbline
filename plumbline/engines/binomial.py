@@ -103,19 +103,33 @@ def _rollback(spec: OptionSpec, steps: int) -> tuple[float, float, float, float]
             f"increase the step count above {steps}"
         )
 
+    # Every node price on the lattice is S * u**k for an integer k in
+    # [-steps, steps], so one table of powers serves every time level. Building
+    # it once turns the American exercise test from an array exponentiation per
+    # step -- O(steps^2) calls to pow -- into a slice of precomputed values.
+    exponents = np.arange(-steps, steps + 1, dtype=float)
+    price_table = S * np.power(u, exponents)
+    intrinsic_table = np.maximum(phi * (price_table - K), 0.0) if american else None
+
+    def level_prices(level: int) -> np.ndarray:
+        """Node prices at ``level``, as a stride-2 view of the table."""
+        return price_table[steps - level : steps + level + 1 : 2]
+
+    def level_intrinsic(level: int) -> np.ndarray:
+        return intrinsic_table[steps - level : steps + level + 1 : 2]
+
     # Binomial Black-Scholes start-up: the last step is not rolled back from a
     # kinked payoff, it is valued exactly. This is what removes the sawtooth.
-    node_prices = S * u ** (2.0 * np.arange(steps) - (steps - 1))
+    node_prices = level_prices(steps - 1)
     values = _black_scholes_layer(node_prices, K, dt, r, q, sigma, phi)
     if american:
-        values = np.maximum(values, phi * (node_prices - K))
+        np.maximum(values, level_intrinsic(steps - 1), out=values)
 
     snapshots: dict[int, np.ndarray] = {}
     for i in range(steps - 2, -1, -1):
         values = disc * (p * values[1:] + (1.0 - p) * values[:-1])
         if american:
-            node_prices = S * u ** (2.0 * np.arange(i + 1) - i)
-            values = np.maximum(values, phi * (node_prices - K))
+            np.maximum(values, level_intrinsic(i), out=values)
         if i <= 2:
             snapshots[i] = values.copy()
 
@@ -196,11 +210,11 @@ def binomial_greeks(spec: OptionSpec, steps: int | None = None) -> Greeks:
     return Greeks(delta=delta, gamma=gamma, vega=vega, theta=theta, rho=rho)
 
 
-def price(spec: OptionSpec) -> PriceResult:
+def price(spec: OptionSpec, with_greeks: bool = True) -> PriceResult:
     steps = int(spec.precision or DEFAULT_STEPS)
     return PriceResult(
         price=binomial_price(spec, steps),
-        greeks=binomial_greeks(spec, steps),
+        greeks=binomial_greeks(spec, steps) if with_greeks else None,
         engine="binomial_crr",
         diagnostics={"steps": steps},
     )

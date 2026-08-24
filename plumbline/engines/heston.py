@@ -221,9 +221,9 @@ def heston_mc_price(
     return float(math.exp(-r * T) * payoff.mean())
 
 
-def price(spec: OptionSpec) -> PriceResult:
+def price(spec: OptionSpec, with_greeks: bool = True) -> PriceResult:
     return PriceResult(
         price=heston_price(spec),
-        greeks=heston_greeks(spec),
+        greeks=heston_greeks(spec) if with_greeks else None,
         engine="heston_cf",
     )

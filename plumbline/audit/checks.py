@@ -211,7 +211,7 @@ def check_reference_price(
             continue
 
         try:
-            truth = ground_truth_price(spec)
+            truth = ground_truth_price(spec, with_greeks=False)
             engine_name = truth.engine
         except PlumblineError as exc:
             results.append(
@@ -512,7 +512,7 @@ def check_convergence(
     results: list[CheckResult] = []
     for spec in grid.sample(config.convergence_cases, config.sample_seed):
         try:
-            reference = ground_truth_price(spec).price
+            reference = ground_truth_price(spec, with_greeks=False).price
         except PlumblineError as exc:
             results.append(
                 CheckResult(4, spec.label(), SKIP, {"reason": str(exc)}, spec=spec.to_dict())

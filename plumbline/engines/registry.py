@@ -95,15 +95,25 @@ def ground_truth_for(spec: OptionSpec) -> EngineSpec:
     return found[0]
 
 
-def ground_truth_price(spec: OptionSpec) -> PriceResult:
-    """Price ``spec`` with its authoritative engine, corners handled first."""
+def ground_truth_price(spec: OptionSpec, with_greeks: bool = True) -> PriceResult:
+    """Price ``spec`` with its authoritative engine, corners handled first.
+
+    Pass ``with_greeks=False`` when only the price is wanted. Greeks are
+    bump-and-reprice, so they cost nine further valuations; on a simulation
+    engine that is ten times the work for a caller that never reads them.
+    """
     if is_degenerate(spec):
         return PriceResult(
             price=degenerate_value(spec),
             engine="closed_form_limit",
             diagnostics={"reason": "degenerate parameters"},
         )
-    return ground_truth_for(spec).price_fn(spec)
+    engine = ground_truth_for(spec)
+    try:
+        return engine.price_fn(spec, with_greeks=with_greeks)
+    except TypeError:
+        # A plug-in engine registered before this argument existed.
+        return engine.price_fn(spec)
 
 
 def get(name: str) -> EngineSpec:

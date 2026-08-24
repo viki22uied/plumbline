@@ -329,10 +329,10 @@ def fdm_greeks(
     )
 
 
-def price(spec: OptionSpec) -> PriceResult:
+def price(spec: OptionSpec, with_greeks: bool = True) -> PriceResult:
     return PriceResult(
         price=fdm_price(spec),
-        greeks=fdm_greeks(spec),
+        greeks=fdm_greeks(spec) if with_greeks else None,
         engine="fdm_crank_nicolson",
         diagnostics={"space_steps": DEFAULT_SPACE_STEPS, "time_steps": DEFAULT_TIME_STEPS},
     )

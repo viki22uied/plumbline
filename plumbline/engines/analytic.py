@@ -484,10 +484,15 @@ def analytic_greeks(spec: OptionSpec, bump: float | None = None) -> Greeks:
     return bump_greeks(analytic_price, spec, bump=bump)
 
 
-def price(spec: OptionSpec) -> PriceResult:
-    """Engine entry point used by the registry."""
+def price(spec: OptionSpec, with_greeks: bool = True) -> PriceResult:
+    """Engine entry point used by the registry.
+
+    ``with_greeks`` is not a micro-optimisation. Every Greek is a
+    bump-and-reprice, so asking for them costs nine more valuations, and a
+    check that only compares prices should not pay for that.
+    """
     return PriceResult(
         price=analytic_price(spec),
-        greeks=analytic_greeks(spec),
+        greeks=analytic_greeks(spec) if with_greeks else None,
         engine="analytic",
     )

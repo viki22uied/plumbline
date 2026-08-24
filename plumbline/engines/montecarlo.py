@@ -388,14 +388,15 @@ def mc_price(spec: OptionSpec, **kwargs) -> float:
     return monte_carlo(spec, **kwargs).price
 
 
-def price(spec: OptionSpec) -> PriceResult:
+def price(spec: OptionSpec, with_greeks: bool = True) -> PriceResult:
     result = monte_carlo(spec)
     from plumbline.engines.bump import bump_greeks
 
     # A wide bump keeps the finite difference above the simulation noise; the
     # common random numbers (fixed seed) make the difference far less noisy
-    # than the raw standard error suggests.
-    greeks = bump_greeks(lambda s: mc_price(s), spec, bump=1e-2)
+    # than the raw standard error suggests. Nine more simulations is a real
+    # cost, so a caller that only needs the price does not pay it.
+    greeks = bump_greeks(lambda s: mc_price(s), spec, bump=1e-2) if with_greeks else None
     return PriceResult(
         price=result.price,
         greeks=greeks,
