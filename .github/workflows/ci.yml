@@ -36,7 +36,12 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,oracle]"
+
+      - name: Validate the engines against QuantLib
+        # An external oracle this author did not write. Runs before the rest,
+        # because if the reference engines are wrong nothing after it means much.
+        run: pytest -m oracle
 
       - name: Run the test suite without the native backend
         # The backend is optional, so the suite has to be green before it is

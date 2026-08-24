@@ -433,16 +433,42 @@ instrument and the underlying model.
 
 ## 13. Tests
 
-Run the full suite:
+The suite is tiered, because the cost of a test is not the arithmetic in it.
+A pricing test runs in milliseconds; a test that audits a model has to start a
+sandbox, and that is a Python interpreter importing the engine stack, about a
+second before any pricing happens.
+
+The inner loop, while you are editing an engine. Pure numerics plus the full
+QuantLib cross-validation, no subprocesses:
+
+```bash
+pytest -m fast
+```
+
+Everything except the long simulations. Run this before committing:
+
+```bash
+pytest -m "not slow"
+```
+
+The lot, as CI runs it:
 
 ```bash
 pytest
 ```
 
-Run it without the long simulations:
+| Lane | Tests | Wall time | What it covers |
+| --- | ---: | ---: | --- |
+| `fast` | 170 | **7 s** | closed forms, engines, and the QuantLib oracle |
+| `integration` | 125 | ~20 s | sandbox, audit engine, reports, CLI, API |
+| `native` | 40 | ~5 s | the optional C++ backend |
+| `slow` | 3 | ~25 s | million-path simulations |
+| all | 338 | ~39 s | |
+
+Validate against QuantLib on its own:
 
 ```bash
-pytest -m "not slow"
+pytest -m oracle
 ```
 
 Measure the coverage:
@@ -451,12 +477,15 @@ Measure the coverage:
 pytest --cov=plumbline/engines --cov=plumbline/audit --cov-report=term-missing
 ```
 
-The suite has 293 tests. Coverage of the Ground Truth Engine Suite and the
+The suite has 338 tests. Coverage of the Ground Truth Engine Suite and the
 Validation and Audit Engine is 91 percent. The target set by the requirements is
 85 percent.
 
 See [CHECKLIST.md](CHECKLIST.md) for every requirement and the test that proves
-it.
+it, and [BENCHMARKS.md](BENCHMARKS.md) for which reference values are validated
+against QuantLib and which are only cross-checked inside this repository. That
+distinction matters: every defect found in these engines so far passed the
+internal cross-checks while being wrong.
 
 ## 14. Repository layout
 
