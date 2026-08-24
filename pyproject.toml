@@ -58,7 +58,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.4", "pytest-cov>=4.1", "httpx>=0.27"]
+dev = ["pytest>=7.4", "pytest-cov>=4.1", "pytest-xdist>=3.5", "httpx>=0.27"]
+oracle = ["QuantLib>=1.30"]
 
 [project.urls]
 Homepage = "https://github.com/viki22uied/plumbline"
@@ -74,9 +75,13 @@ include = ["plumbline*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q -n 4"
 markers = [
     "slow: a test that needs many simulation paths; deselect with -m 'not slow'",
+    "oracle: validation against QuantLib, an independent external implementation",
+    "fast: pure numerics, no subprocess and no HTTP; the inner-loop lane",
+    "integration: sandbox, audit engine, reports, CLI and API",
+    "native: the optional C++ backend, skipped when it is not built",
 ]
 
 [tool.coverage.run]
