@@ -336,6 +336,62 @@ def test_continuous_geometric_asian_matches_quantlib(option_type):
     assert mine == pytest.approx(option.NPV(), abs=1e-9)
 
 
+@pytest.mark.parametrize("option_type", ["call", "put"])
+def test_floating_strike_lookbacks_match_quantlib(option_type):
+    """Goldman, Sosin & Gatto, against QuantLib's own analytic engine.
+
+    Both floating branches are here on purpose. A mutation that flipped the
+    sign of the reflection term in the *call* branch survived the entire suite,
+    because the only numerical lookback comparisons covered the floating put
+    and the fixed call. Two of the four branches had no check at all.
+    """
+    S, K, r, q, sigma = 100.0, 100.0, 0.05, 0.02, 0.25
+    expiry, T = _maturity(1.0)
+
+    option = ql.ContinuousFloatingLookbackOption(
+        S,  # the running extreme, equal to spot for a fresh contract
+        ql.FloatingTypePayoff(
+            ql.Option.Call if option_type == "call" else ql.Option.Put
+        ),
+        ql.EuropeanExercise(expiry),
+    )
+    option.setPricingEngine(ql.AnalyticContinuousFloatingLookbackEngine(_process(S, r, q, sigma)))
+
+    mine = analytic.lookback_price(
+        OptionSpec(
+            "lookback", option_type, S=S, K=K, T=T, r=r, q=q, sigma=sigma,
+            strike_type="floating",
+        )
+    )
+
+    assert mine == pytest.approx(option.NPV(), abs=1e-10)
+
+
+@pytest.mark.parametrize("option_type", ["call", "put"])
+def test_fixed_strike_lookbacks_match_quantlib(option_type):
+    """Conze & Viswanathan, both branches."""
+    S, K, r, q, sigma = 100.0, 100.0, 0.05, 0.02, 0.25
+    expiry, T = _maturity(1.0)
+
+    option = ql.ContinuousFixedLookbackOption(
+        S,  # the running extreme, equal to spot for a fresh contract
+        ql.PlainVanillaPayoff(
+            ql.Option.Call if option_type == "call" else ql.Option.Put, K
+        ),
+        ql.EuropeanExercise(expiry),
+    )
+    option.setPricingEngine(ql.AnalyticContinuousFixedLookbackEngine(_process(S, r, q, sigma)))
+
+    mine = analytic.lookback_price(
+        OptionSpec(
+            "lookback", option_type, S=S, K=K, T=T, r=r, q=q, sigma=sigma,
+            strike_type="fixed",
+        )
+    )
+
+    assert mine == pytest.approx(option.NPV(), abs=1e-10)
+
+
 def test_the_finite_difference_engine_matches_quantlibs_grid():
     """Two independent Crank-Nicolson implementations of the same PDE."""
     S, K, r, q, sigma = 100.0, 100.0, 0.05, 0.02, 0.25

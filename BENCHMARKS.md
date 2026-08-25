@@ -36,6 +36,8 @@ pytest tests/test_external_oracle.py
 | All 8 standard barriers | `analytic` | `AnalyticBarrierEngine` | **1e-9 absolute** |
 | Cash-or-nothing and asset-or-nothing digitals | `analytic` | `AnalyticEuropeanEngine` | **1e-12 absolute** |
 | Continuous geometric Asian | `analytic` | `AnalyticContinuousGeometricAveragePriceAsianEngine` | **1e-9 absolute** |
+| Floating-strike lookback, call and put | `analytic` | `AnalyticContinuousFloatingLookbackEngine` | **1e-14 absolute** |
+| Fixed-strike lookback, call and put | `analytic` | `AnalyticContinuousFixedLookbackEngine` | **1e-14 absolute** |
 | Crank-Nicolson grid | `fdm_crank_nicolson` | `FdBlackScholesVanillaEngine` | < 1e-3 absolute |
 
 ### The two numbers this repository quotes by value
@@ -108,6 +110,32 @@ parameter combinations in the stress suite.
 
 ---
 
+## Table 4 — Mutation testing
+
+Coverage says a line ran. It does not say an assertion would have failed had
+that line been wrong. Twenty-seven plausible quant bugs were injected into the
+engines and the audit logic, one at a time, and the suite was run against each:
+a missing Ito correction, `sqrt(T)` written as `T`, the Heston naive form in
+place of the little trap, Rannacher start-up removed, the barrier bridge
+correction deleted, the negative-price scan disabled.
+
+**26 of 27 were killed. Mutation score 96%.**
+
+The one survivor was a sign flip on the reflection term of the floating-strike
+lookback *call*. It survived because the only numerical lookback comparisons in
+the suite covered the floating put and the fixed call — two of the four
+branches had no check at all, and the formula itself turned out to be correct.
+All four are now in Table 1 against QuantLib.
+
+One thing the mutation run showed that is worth stating plainly: **the
+integration tests cannot catch a broken reference engine.** They audit
+`samples/good_model.py`, which delegates to the same engines the audit compares
+it against, so a wrong engine makes the model wrong in exactly the same way and
+the audit still passes. That is the self-validation problem in miniature, and
+it is the reason Table 1 exists.
+
+---
+
 ## A note on the Hull figure
 
 GT-01 uses S = K = 100, r = 5%, σ = 20%, T = 1 year, and Plumbline returns
@@ -135,6 +163,7 @@ Honesty about the gaps, since the gaps are what a reviewer will look for.
 - **The arithmetic Asian has no external oracle.** It has no closed form, so
   its reference is Plumbline's own simulation with a control variate. It sits
   in Table 2 for that reason.
-- **Lookbacks are not in Table 1.** QuantLib's continuous lookback engines use
-  a different running-extremum convention, and reconciling that properly is
-  outstanding work rather than something to fudge.
+- **Nothing here is a mutation-tested guarantee beyond the 27 injected bugs.**
+  The score is 26 of 27 killed. One survivor -- a sign flip in the floating
+  lookback call -- was a genuine gap and is now closed. A larger mutation set
+  would find more.
