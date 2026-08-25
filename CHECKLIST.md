@@ -7,7 +7,7 @@ names the test that proves it. Run the suite to confirm:
 pytest --cov=plumbline/engines --cov=plumbline/audit --cov-report=term-missing
 ```
 
-Result at the time of writing: **338 tests pass. Coverage is 91 percent.** Of those, 45 validate the engines against QuantLib rather than against Plumbline itself; see [BENCHMARKS.md](BENCHMARKS.md).
+Result at the time of writing: **344 tests pass. Coverage is 91 percent.** Of those, 45 validate the engines against QuantLib rather than against Plumbline itself; see [BENCHMARKS.md](BENCHMARKS.md).
 
 ---
 
@@ -27,7 +27,7 @@ Result at the time of writing: **338 tests pass. Coverage is 91 percent.** Of th
 - [x] Absolute difference computed — same test, `evidence["absolute_difference"]`
 - [x] Relative difference computed — same test, `evidence["relative_difference"]`
 - [x] PASS/FAIL assigned against the user-set Tolerance — `test_check1_honours_a_user_set_tolerance`
-- [x] Runs across a full parameter grid, not a single point — `test_check1_runs_across_the_whole_grid_not_one_point`
+- [x] Runs across a full parameter grid, not a single point, **and off it** — `test_check1_runs_across_the_whole_grid_not_one_point`, `test_check1_catches_a_model_tuned_to_the_grid`
 
 ## 3. Check Type 2 — Put-Call Parity
 

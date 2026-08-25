@@ -102,6 +102,10 @@ class AuditConfig:
     edge_cases: int = 6
     convergence_cases: int = 4
     arbitrage_cases: int = 8
+    #: Extra points a short distance off the grid, for Check Type 1. A model
+    #: tuned to the grid is exactly right on it and wrong between the nodes,
+    #: so a check that only ever asks the grid gives it full marks.
+    offgrid_cases: int = 24
     #: Seed for that spread. It is written into the report, so a run repeats.
     sample_seed: int = 0
     #: Precision levels for Check Type 4, smallest first.
@@ -122,6 +126,7 @@ class AuditConfig:
             "edge_cases": self.edge_cases,
             "convergence_cases": self.convergence_cases,
             "arbitrage_cases": self.arbitrage_cases,
+            "offgrid_cases": self.offgrid_cases,
             "sample_seed": self.sample_seed,
             "precision_levels": list(self.precision_levels),
             "high_volatility": self.high_volatility,
@@ -203,7 +208,10 @@ def check_reference_price(
     config: AuditConfig,
 ) -> list[CheckResult]:
     results: list[CheckResult] = []
-    for spec in grid:
+    # The grid itself, then points deliberately just off it. A model that was
+    # tuned until the grid passed is right on the nodes and wrong between them.
+    points = list(grid) + grid.perturbed(config.offgrid_cases, config.sample_seed)
+    for spec in points:
         result = _mut_result(mut, spec)
         bad = _failed_result(1, spec, result)
         if bad is not None:

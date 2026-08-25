@@ -459,7 +459,7 @@ pytest
 
 | Lane | Tests | Wall time | What it covers |
 | --- | ---: | ---: | --- |
-| `fast` | 170 | **7 s** | closed forms, engines, and the QuantLib oracle |
+| `fast` | 176 | **7 s** | closed forms, engines, and the QuantLib oracle |
 | `integration` | 125 | ~20 s | sandbox, audit engine, reports, CLI, API |
 | `native` | 40 | ~5 s | the optional C++ backend |
 | `slow` | 3 | ~25 s | million-path simulations |
@@ -477,7 +477,7 @@ Measure the coverage:
 pytest --cov=plumbline/engines --cov=plumbline/audit --cov-report=term-missing
 ```
 
-The suite has 338 tests. Coverage of the Ground Truth Engine Suite and the
+The suite has 344 tests. Coverage of the Ground Truth Engine Suite and the
 Validation and Audit Engine is 91 percent. The target set by the requirements is
 85 percent.
 

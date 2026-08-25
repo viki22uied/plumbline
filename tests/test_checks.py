@@ -86,11 +86,77 @@ def test_check1_passes_a_correct_model_and_reports_both_differences(correct_mode
 
 
 def test_check1_runs_across_the_whole_grid_not_one_point(correct_model):
-    """FR-C-04: one result per grid point, both option types included."""
-    results = check_reference_price(correct_model, SMALL_GRID, Tolerance(), AuditConfig())
+    """FR-C-04: every grid point, both option types, plus points off the grid."""
+    config = AuditConfig()
+    results = check_reference_price(correct_model, SMALL_GRID, Tolerance(), config)
 
-    assert len(results) == len(SMALL_GRID) == 4
+    assert len(results) == len(SMALL_GRID) + config.offgrid_cases
     assert {result.spec["option_type"] for result in results} == {"call", "put"}
+
+    # Every grid point is still covered exactly once.
+    grid_labels = {spec.label() for spec in SMALL_GRID}
+    covered = {r.case for r in results}
+    assert grid_labels <= covered
+
+    assert all(result.status == "PASS" for result in results)
+
+
+def test_check1_catches_a_model_tuned_to_the_grid(tmp_path):
+    """FR-C-04: the check must probe the range, not just the published nodes.
+
+    A grid is an exam paper. A model calibrated until the tests passed, or an
+    AI tool shown the failures and patched until they stopped, can be exactly
+    right on every grid point and wrong everywhere between them. Before Check
+    Type 1 swept off-grid points, this adversary scored 72 out of 72 on it.
+    """
+    grid_spots = {95.0, 105.0}
+    source = f"""
+        import math
+
+        def _N(x):
+            return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+        def price(instrument, option_type, S, K, T, r, q, sigma, **kwargs):
+            phi = 1.0 if option_type == "call" else -1.0
+            on_grid = any(abs(S - g) < 1e-9 for g in {sorted(grid_spots)!r})
+            if not on_grid and T > 0.0 and sigma > 0.0 and S > 0.0:
+                # Off the grid: a crude approximation with no basis.
+                return max(phi * (S - K), 0.0) + 0.35 * sigma * S * math.sqrt(T)
+            if T <= 0.0:
+                return max(phi * (S - K), 0.0)
+            if sigma <= 0.0:
+                return math.exp(-r * T) * max(phi * (S * math.exp((r - q) * T) - K), 0.0)
+            if S <= 0.0:
+                return 0.0 if phi > 0 else K * math.exp(-r * T)
+            v = sigma * math.sqrt(T)
+            d1 = (math.log(S / K) + (r - q + 0.5 * sigma * sigma) * T) / v
+            d2 = d1 - v
+            return phi * (S * math.exp(-q * T) * _N(phi * d1)
+                          - K * math.exp(-r * T) * _N(phi * d2))
+    """
+    with _flat(source, tmp_path, "tuned_to_the_grid.py") as mut:
+        results = check_reference_price(mut, SMALL_GRID, Tolerance(), AuditConfig())
+
+    on_grid = [r for r in results if r.spec["S"] in grid_spots]
+    off_grid = [r for r in results if r.spec["S"] not in grid_spots]
+
+    # It still passes every point it was tuned for. That is the whole problem.
+    assert on_grid and all(r.status == "PASS" for r in on_grid)
+    # And it is caught the moment the check steps off them.
+    assert off_grid, "Check Type 1 evaluated no off-grid points"
+    assert any(r.status == "FAIL" for r in off_grid)
+
+
+def test_the_offgrid_points_are_reproducible_and_actually_off_the_grid():
+    grid = ParameterGrid(spots=(95.0, 105.0), strikes=(100.0,), maturities=(1.0,), vols=(0.2,))
+
+    first = grid.perturbed(8, seed=0)
+    again = grid.perturbed(8, seed=0)
+
+    assert [s.label() for s in first] == [s.label() for s in again]
+    assert all(s.S not in (95.0, 105.0) for s in first)
+    # Close enough that no reference engine changes regime.
+    assert all(0.9 < s.S / 100.0 < 1.2 for s in first)
 
 
 def test_check1_fails_a_model_that_is_off_by_a_scale_factor(tmp_path):

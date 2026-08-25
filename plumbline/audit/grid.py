@@ -86,6 +86,43 @@ class ParameterGrid:
                 pairs.append((seen[key], spec))
         return pairs
 
+    def perturbed(self, count: int, seed: int = 0, size: float = 0.037) -> list[OptionSpec]:
+        """Points a short distance off the grid, for FR-C-04.
+
+        A grid is a published exam paper. A model tuned until the tests passed
+        -- by calibration, by a lookup table, or by an AI tool that was shown
+        the failures and patched until they went away -- can be exactly right
+        on every grid point and wrong everywhere between them. That model
+        scores full marks on a check that only ever asks the grid.
+
+        This is not hypothetical: an adversary built to do exactly that passes
+        Check Type 1 on all 72 grid points and is caught only by the checks
+        that happen to evaluate elsewhere.
+
+        The perturbation is multiplicative, deliberately not a round number,
+        and seeded so a run reproduces. The points stay close enough that no
+        reference engine changes regime.
+        """
+        points = self.points()
+        if not points:
+            return []
+        rng = random.Random(seed ^ 0x9E3779B9)
+        chosen = []
+        for _ in range(max(count, 0)):
+            base = points[rng.randrange(len(points))]
+            def shift() -> float:
+                return 1.0 + rng.uniform(-size, size)
+
+            chosen.append(
+                base.with_(
+                    S=base.S * shift(),
+                    K=base.K * shift(),
+                    T=base.T * shift(),
+                    sigma=base.sigma * shift(),
+                )
+            )
+        return chosen
+
     def sample(self, count: int, seed: int = 0) -> list[OptionSpec]:
         """A deterministic spread of ``count`` points, for the costly checks.
 
